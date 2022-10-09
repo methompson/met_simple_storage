@@ -1,0 +1,8 @@
+{
+  "entry": [
+    "./src/main.ts"
+  ],
+  "splitting": false,
+  "sourcemap": true,
+  "clean": true
+}
