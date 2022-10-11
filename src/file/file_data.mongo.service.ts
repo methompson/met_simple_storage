@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { Collection, Document, ObjectId } from 'mongodb';
 
 import {
-  DeleteFileOptions,
   FileDataService,
   FileListOutput,
   GetFileListOptions,
@@ -93,7 +92,7 @@ export class MongoFileDataService implements FileDataService {
     await fileCollection.createIndex({ 'files.filename': 1 });
   }
 
-  async getFileByName(name: string): Promise<FileDetails> {
+  async getFileById(name: string): Promise<FileDetails> {
     throw new Error('unimplemented');
   }
 
@@ -105,7 +104,7 @@ export class MongoFileDataService implements FileDataService {
     throw new Error('unimplemented');
   }
 
-  async deleteFile(options: DeleteFileOptions): Promise<FileDetails> {
+  async deleteFiles(ids: string[]): Promise<FileDetails[]> {
     throw new Error('unimplemented');
   }
 

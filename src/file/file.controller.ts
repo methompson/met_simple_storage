@@ -8,16 +8,20 @@ import {
   Res,
   Req,
   UseInterceptors,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
+import formidable, { Formidable } from 'formidable';
 
+import { AuthRequiredIncerceptor } from '@/src/middleware/auth_interceptor';
+import { UserId } from '@/src/middleware/auth_model_decorator';
 import { RequestLogInterceptor } from '@/src/middleware/request_log.interceptor';
 
 import { FileDataService } from '@/src/file/file_data.service';
-import { AuthRequiredIncerceptor } from '@/src/middleware/auth_interceptor';
-import { UserId } from '@/src/middleware/auth_model_decorator';
 import { LoggerService } from '@/src/logger/logger.service';
+import { isString } from '@/src/utils/type_guards';
 
 @UseInterceptors(RequestLogInterceptor)
 @Controller({ path: 'api' })
@@ -80,12 +84,35 @@ export class FileController {
     @Req() request: Request,
     @UserId() userId: string,
   ): Promise<void> {
+    let parsedData;
+
+    try {
+      parsedData = await this.parseFilesAndFields(request, this.uploadPath);
+    } catch (e) {
+      const msg = isString(e?.message) ? e.message : `${e}`;
+      throw new HttpException(msg, HttpStatus.BAD_REQUEST);
+    }
+
     throw new Error('Unimplemented');
   }
 
   @Post('delete/:fileName')
   @UseInterceptors(AuthRequiredIncerceptor)
   async deleteFile(@Req() request: Request): Promise<void> {
+    throw new Error('Unimplemented');
+  }
+
+  async parseFilesAndFields(req: Request, uploadPath: string) {
+    const options: Partial<formidable.Options> = {
+      multiples: true,
+    };
+
+    if (uploadPath.length > 0) {
+      options.uploadDir = uploadPath;
+    }
+
+    const form = new Formidable(options);
+
     throw new Error('Unimplemented');
   }
 }

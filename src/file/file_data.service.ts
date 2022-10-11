@@ -1,12 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { FileDetails, NewFileDetails } from '@/src/models/file_models';
 
-export interface DeleteFileOptions {
-  id?: string;
-  filename?: string;
-  originalFilename?: string;
-}
-
 export enum FileSortOption {
   Filename = 'Filename',
   DateAdded = 'DateAdded',
@@ -21,9 +15,16 @@ export interface FileListOutput {
   morePages: boolean;
 }
 
+// Provides information on files deleted
+export interface DeleteDetails {
+  id: string;
+  fileDetails: FileDetails | null;
+  error?: string;
+}
+
 @Injectable()
 export abstract class FileDataService {
-  abstract getFileByName(name: string): Promise<FileDetails>;
+  abstract addFiles(fileDetails: NewFileDetails[]): Promise<FileDetails[]>;
 
   abstract getFileList(
     page: number,
@@ -31,7 +32,7 @@ export abstract class FileDataService {
     options?: GetFileListOptions,
   ): Promise<FileListOutput>;
 
-  abstract deleteFile(options: DeleteFileOptions): Promise<FileDetails>;
+  abstract getFileById(id: string): Promise<FileDetails>;
 
-  abstract addFiles(fileDetails: NewFileDetails[]): Promise<FileDetails[]>;
+  abstract deleteFiles(id: string[]): Promise<DeleteDetails[]>;
 }

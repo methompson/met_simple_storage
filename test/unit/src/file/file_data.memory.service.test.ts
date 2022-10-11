@@ -1,0 +1,212 @@
+import { InMemoryFileDataService } from '@/src/file/file_data.memory.service';
+import { FileSortOption } from '@/src/file/file_data.service';
+import { FileDetails, NewFileDetails } from '@/src/models/file_models';
+
+const originalFileName1 = 'zyx originalFileName1 0aihsdfnlk';
+const filename1 = '16713749-d83c-42c0-b4a8-4a29a04cd171';
+const dateAdded1 = new Date(1);
+const authorId1 = 'authorId1 ;aoidsl';
+const size1 = 1024;
+const isPriave1 = true;
+
+const newFile1 = new NewFileDetails(
+  originalFileName1,
+  filename1,
+  dateAdded1,
+  authorId1,
+  size1,
+  isPriave1,
+);
+
+const originalFileName2 = 'abc originalFileName2 aspdfiln';
+const filename2 = '2b883407-6b52-40f1-b129-e64e857218ef';
+const dateAdded2 = new Date(2);
+const authorId2 = 'authorId2 awosdln';
+const size2 = 2048;
+const isPriave2 = false;
+
+const newFile2 = new NewFileDetails(
+  originalFileName2,
+  filename2,
+  dateAdded2,
+  authorId2,
+  size2,
+  isPriave2,
+);
+
+const id1 = 'ca1fafe9-7fab-4401-82dc-2b3f3f8cd1e1';
+const id2 = 'f829b909-0b29-401f-9a77-fb3a6e19e012';
+
+describe('InMemoryFileDataService', () => {
+  describe('addFiles', () => {
+    test('adds a file to the files record', async () => {
+      const fds = new InMemoryFileDataService();
+
+      expect(Object.keys(fds.files).length).toBe(0);
+      fds.addFiles([newFile1]);
+
+      expect(Object.keys(fds.files).length).toBe(1);
+
+      const result = Object.values(fds.files)[0];
+
+      expect(result.toJSON()).toMatchObject(newFile1.toJSON());
+    });
+
+    test('adds multiple files to the files record', async () => {
+      const fds = new InMemoryFileDataService();
+
+      expect(Object.keys(fds.files).length).toBe(0);
+      fds.addFiles([newFile1, newFile2]);
+
+      expect(Object.keys(fds.files).length).toBe(2);
+
+      const result1 = Object.values(fds.files).find(
+        (el) => el.originalFilename === originalFileName1,
+      );
+
+      expect(result1.toJSON()).toMatchObject(newFile1.toJSON());
+
+      const result2 = Object.values(fds.files).find(
+        (el) => el.originalFilename === originalFileName2,
+      );
+
+      expect(result2.toJSON()).toMatchObject(newFile2.toJSON());
+    });
+  });
+
+  describe('getFileList', () => {
+    test('Returns a list of files sorted by name', async () => {
+      const fds = new InMemoryFileDataService();
+      fds.addFiles([newFile1, newFile2]);
+      expect(Object.keys(fds.files).length).toBe(2);
+
+      const files = await fds.getFileList();
+      expect(files.files.length).toBe(2);
+
+      const result1 = files.files[0];
+      const result2 = files.files[1];
+
+      expect(result1.toJSON()).toMatchObject(newFile2.toJSON());
+      expect(result2.toJSON()).toMatchObject(newFile1.toJSON());
+    });
+
+    test('Returns a list of files sorted by dateAdded when dateAdded option is added', async () => {
+      const fds = new InMemoryFileDataService();
+      fds.addFiles([newFile1, newFile2]);
+      expect(Object.keys(fds.files).length).toBe(2);
+
+      const files = await fds.getFileList(1, 20, {
+        sortBy: FileSortOption.DateAdded,
+      });
+      expect(files.files.length).toBe(2);
+
+      const result1 = files.files[0];
+      const result2 = files.files[1];
+
+      expect(result1.toJSON()).toMatchObject(newFile1.toJSON());
+      expect(result2.toJSON()).toMatchObject(newFile2.toJSON());
+    });
+
+    test('Returns morePages: false when fewer files exist than pagination', async () => {
+      const fds = new InMemoryFileDataService();
+      fds.addFiles([newFile1, newFile2]);
+      expect(Object.keys(fds.files).length).toBe(2);
+
+      const files = await fds.getFileList();
+      expect(files.morePages).toBe(false);
+    });
+
+    test('Returns morePages: true when more files exist than pagination', async () => {
+      const fds = new InMemoryFileDataService();
+      fds.addFiles([newFile1, newFile2, newFile1, newFile2]);
+      expect(Object.keys(fds.files).length).toBe(4);
+
+      const files = await fds.getFileList(1, 2);
+      expect(files.morePages).toBe(true);
+    });
+
+    test('Returns an empty array when no files exist', async () => {
+      const fds = new InMemoryFileDataService();
+      expect(Object.keys(fds.files).length).toBe(0);
+
+      const files = await fds.getFileList(1, 2);
+      expect(files.morePages).toBe(false);
+      expect(files.files).toStrictEqual([]);
+    });
+  });
+
+  describe('getFileById', () => {
+    test('Returns the file if its id exists', async () => {
+      const file1 = FileDetails.fromNewFileDetails(id1, newFile1);
+      const file2 = FileDetails.fromNewFileDetails(id2, newFile2);
+
+      const fds = new InMemoryFileDataService([file1, file2]);
+
+      const result1 = await fds.getFileById(file1.id);
+      expect(result1.toJSON()).toStrictEqual(file1.toJSON());
+
+      const result2 = await fds.getFileById(file2.id);
+      expect(result2.toJSON()).toStrictEqual(file2.toJSON());
+    });
+
+    test('Throws an error if its id does not exist', async () => {
+      const file1 = FileDetails.fromNewFileDetails(id1, newFile1);
+      const file2 = FileDetails.fromNewFileDetails(id2, newFile2);
+
+      const fds = new InMemoryFileDataService([file1, file2]);
+
+      expect(() => fds.getFileById('abc')).rejects.toThrow();
+    });
+  });
+
+  describe('deleteFile', () => {
+    test('Deletes a file form the files object', async () => {
+      const file1 = FileDetails.fromNewFileDetails(id1, newFile1);
+      const file2 = FileDetails.fromNewFileDetails(id2, newFile2);
+
+      const fds = new InMemoryFileDataService([file1, file2]);
+      expect(Object.keys(fds.files).length).toBe(2);
+
+      const result = await fds.deleteFiles([file1.id]);
+
+      expect(Object.keys(fds.files).length).toBe(1);
+
+      expect(result[0].fileDetails.toJSON()).toStrictEqual(file1.toJSON());
+      expect(result[0].id).toBe(file1.id);
+      expect(result[0].error).toBeUndefined();
+    });
+
+    test('Deletes multiple files from the files object', async () => {
+      const file1 = FileDetails.fromNewFileDetails(id1, newFile1);
+      const file2 = FileDetails.fromNewFileDetails(id2, newFile2);
+
+      const fds = new InMemoryFileDataService([file1, file2]);
+      expect(Object.keys(fds.files).length).toBe(2);
+
+      const result = await fds.deleteFiles([file1.id, file2.id]);
+
+      expect(Object.keys(fds.files).length).toBe(0);
+
+      expect(result[0].fileDetails.toJSON()).toStrictEqual(file1.toJSON());
+      expect(result[0].id).toBe(file1.id);
+      expect(result[0].error).toBeUndefined();
+      expect(result[1].fileDetails.toJSON()).toStrictEqual(file2.toJSON());
+      expect(result[1].id).toBe(file2.id);
+      expect(result[1].error).toBeUndefined();
+    });
+
+    test('Provides error information for all files not deleted', async () => {
+      const file1 = FileDetails.fromNewFileDetails(id1, newFile1);
+      const file2 = FileDetails.fromNewFileDetails(id2, newFile2);
+
+      const fds = new InMemoryFileDataService([file1, file2]);
+      expect(Object.keys(fds.files).length).toBe(2);
+
+      const id = 'test id';
+      const result = await fds.deleteFiles([id]);
+      expect(result[0].id).toBe(id);
+      expect(result[0].fileDetails).toBe(null);
+      expect(result[0].error).toBe('File Does Not Exist');
+    });
+  });
+});
