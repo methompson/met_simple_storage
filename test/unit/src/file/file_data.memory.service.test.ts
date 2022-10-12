@@ -118,7 +118,15 @@ describe('InMemoryFileDataService', () => {
 
     test('Returns morePages: true when more files exist than pagination', async () => {
       const fds = new InMemoryFileDataService();
-      fds.addFiles([newFile1, newFile2, newFile1, newFile2]);
+      const newFile3 = NewFileDetails.fromJSON({
+        ...newFile1.toJSON(),
+        filename: 'filename3',
+      });
+      const newFile4 = NewFileDetails.fromJSON({
+        ...newFile1.toJSON(),
+        filename: 'filename4',
+      });
+      fds.addFiles([newFile1, newFile2, newFile3, newFile4]);
       expect(Object.keys(fds.files).length).toBe(4);
 
       const files = await fds.getFileList(1, 2);
@@ -135,17 +143,17 @@ describe('InMemoryFileDataService', () => {
     });
   });
 
-  describe('getFileById', () => {
-    test('Returns the file if its id exists', async () => {
+  describe('getFileByName', () => {
+    test('Returns the file if its filename exists', async () => {
       const file1 = FileDetails.fromNewFileDetails(id1, newFile1);
       const file2 = FileDetails.fromNewFileDetails(id2, newFile2);
 
       const fds = new InMemoryFileDataService([file1, file2]);
 
-      const result1 = await fds.getFileById(file1.id);
+      const result1 = await fds.getFileByName(file1.filename);
       expect(result1.toJSON()).toStrictEqual(file1.toJSON());
 
-      const result2 = await fds.getFileById(file2.id);
+      const result2 = await fds.getFileByName(file2.filename);
       expect(result2.toJSON()).toStrictEqual(file2.toJSON());
     });
 
@@ -155,7 +163,7 @@ describe('InMemoryFileDataService', () => {
 
       const fds = new InMemoryFileDataService([file1, file2]);
 
-      expect(() => fds.getFileById('abc')).rejects.toThrow();
+      expect(() => fds.getFileByName('abc')).rejects.toThrow();
     });
   });
 
@@ -167,12 +175,12 @@ describe('InMemoryFileDataService', () => {
       const fds = new InMemoryFileDataService([file1, file2]);
       expect(Object.keys(fds.files).length).toBe(2);
 
-      const result = await fds.deleteFiles([file1.id]);
+      const result = await fds.deleteFiles([file1.filename]);
 
       expect(Object.keys(fds.files).length).toBe(1);
 
       expect(result[0].fileDetails.toJSON()).toStrictEqual(file1.toJSON());
-      expect(result[0].id).toBe(file1.id);
+      expect(result[0].filename).toBe(file1.filename);
       expect(result[0].error).toBeUndefined();
     });
 
@@ -183,15 +191,15 @@ describe('InMemoryFileDataService', () => {
       const fds = new InMemoryFileDataService([file1, file2]);
       expect(Object.keys(fds.files).length).toBe(2);
 
-      const result = await fds.deleteFiles([file1.id, file2.id]);
+      const result = await fds.deleteFiles([file1.filename, file2.filename]);
 
       expect(Object.keys(fds.files).length).toBe(0);
 
       expect(result[0].fileDetails.toJSON()).toStrictEqual(file1.toJSON());
-      expect(result[0].id).toBe(file1.id);
+      expect(result[0].filename).toBe(file1.filename);
       expect(result[0].error).toBeUndefined();
       expect(result[1].fileDetails.toJSON()).toStrictEqual(file2.toJSON());
-      expect(result[1].id).toBe(file2.id);
+      expect(result[1].filename).toBe(file2.filename);
       expect(result[1].error).toBeUndefined();
     });
 
@@ -204,7 +212,7 @@ describe('InMemoryFileDataService', () => {
 
       const id = 'test id';
       const result = await fds.deleteFiles([id]);
-      expect(result[0].id).toBe(id);
+      expect(result[0].filename).toBe(id);
       expect(result[0].fileDetails).toBe(null);
       expect(result[0].error).toBe('File Does Not Exist');
     });

@@ -20,7 +20,7 @@ export class InMemoryFileDataService implements FileDataService {
     }
 
     for (const file of files) {
-      this._files[file.id] = file;
+      this._files[file.filename] = file;
     }
   }
 
@@ -35,7 +35,7 @@ export class InMemoryFileDataService implements FileDataService {
       const id = uuidv4();
       const fileDetails = FileDetails.fromNewFileDetails(id, nfd);
 
-      this.files[id] = fileDetails;
+      this.files[fileDetails.filename] = fileDetails;
 
       return fileDetails;
     });
@@ -77,8 +77,8 @@ export class InMemoryFileDataService implements FileDataService {
     return { files, morePages };
   }
 
-  async getFileById(id: string): Promise<FileDetails> {
-    const file = this.files[id];
+  async getFileByName(name: string): Promise<FileDetails> {
+    const file = this.files[name];
 
     if (isNullOrUndefined(file)) {
       throw new NotFoundError('File Not Found');
@@ -87,20 +87,20 @@ export class InMemoryFileDataService implements FileDataService {
     return file;
   }
 
-  async deleteFiles(ids: string[]): Promise<DeleteDetails[]> {
+  async deleteFiles(names: string[]): Promise<DeleteDetails[]> {
     const output: DeleteDetails[] = [];
 
-    for (const id of ids) {
-      const file = this.files[id];
+    for (const filename of names) {
+      const file = this.files[filename];
       if (!isNullOrUndefined(file)) {
-        delete this.files[id];
+        delete this.files[filename];
         output.push({
-          id,
+          filename,
           fileDetails: file,
         });
       } else {
         output.push({
-          id,
+          filename,
           fileDetails: null,
           error: 'File Does Not Exist',
         });

@@ -51,6 +51,18 @@ export class UploadedFile {
   }
 
   static fromFormidable(file: formidable.File): UploadedFile {
+    if (!isRecord(file)) {
+      throw new InvalidInputError('Invalid Uploaded File format');
+    }
+
+    const filepathTest = isString(file.filepath);
+    const originalFilenameTest = isString(file.originalFilename);
+    const sizeTest = isNumber(file.size);
+
+    if (!filepathTest || !originalFilenameTest || !sizeTest) {
+      throw new InvalidInputError('Invalid Uploaded File format');
+    }
+
     return new UploadedFile(file.filepath, file.originalFilename, file.size);
   }
 
@@ -60,6 +72,11 @@ export class UploadedFile {
     return sanitizedName.replace(/[_]+/g, '_');
   }
 }
+
+export type ParsedFilesAndFields = {
+  files: UploadedFile[];
+  ops: Record<string, unknown>;
+};
 
 export interface NewFileDetailsJSON {
   originalFilename: string;
