@@ -51,6 +51,10 @@ export class AuthModel {
 }
 
 export class NoAuthModel extends AuthModel {
+  constructor() {
+    super({});
+  }
+
   get authorized(): boolean {
     return true;
   }

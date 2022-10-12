@@ -8,6 +8,7 @@ import { FileController } from '@/src/file/file.controller';
 import { InMemoryFileDataService } from '@/src/file/file_data.memory.service';
 import { FileDetails, UploadedFile } from '@/src/models/file_models';
 import { LoggerService } from '@/src/logger/logger.service';
+import { AuthModel, NoAuthModel } from '@/src/models/auth_model';
 
 type FormidableParseCalback = (
   err: any,
@@ -51,6 +52,9 @@ const parse = Formidable.prototype.parse as jest.Mock<unknown, unknown[]>;
 const rename = fsPromises.rename as unknown as jest.Mock<unknown, unknown[]>;
 const rm = fsPromises.rm as unknown as jest.Mock<unknown, unknown[]>;
 const stat = fsPromises.stat as unknown as jest.Mock<unknown, unknown[]>;
+const mkdir = fsPromises.mkdir as unknown as jest.Mock<unknown, unknown[]>;
+
+mkdir.mockImplementation(async () => {});
 
 const testError = 'Test Error ;oasdfkln';
 
@@ -263,9 +267,12 @@ describe('FileController', () => {
         new LoggerService([]),
       );
 
-      stat.mockImplementationOnce(() => {});
+      stat.mockImplementationOnce(async () => {
+        throw new Error(testError);
+      });
 
       const req = {
+        authModel: new NoAuthModel(),
         params: {
           name: fileDetails1.filename,
         },

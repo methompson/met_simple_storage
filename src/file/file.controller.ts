@@ -35,6 +35,14 @@ import {
 
 import { isString } from '@/src/utils/type_guards';
 import { getIntFromString } from '@/src/utils/get_number_from_string';
+import { NotFoundError } from '@/src/errors';
+import { AuthModel } from '../models/auth_model';
+
+function isRejected(
+  input: PromiseSettledResult<unknown>,
+): input is PromiseRejectedResult {
+  return input.status === 'rejected';
+}
 
 @UseInterceptors(RequestLogInterceptor)
 @Controller({ path: 'api' })
@@ -54,24 +62,31 @@ export class FileController {
    * Configures the temp and saved file paths.
    */
   async init() {
-    this.uploadPath = this.configService.get('temp_file_path') ?? './temp';
+    this.uploadPath = this.configService.get('temp_file_path') ?? '';
 
     if (this.uploadPath.length > 0) {
-      await mkdir(this.uploadPath, {
-        recursive: true,
-      });
+      try {
+        await mkdir(this.uploadPath, {
+          recursive: true,
+        });
+      } catch (e) {
+        const msg = `Invalid Upload File Path: ${e}`;
+        // console.error(msg);
+        this.loggerService.addErrorLog(msg);
+        process.exit();
+      }
     }
 
-    const savedFilePath =
-      this.configService.get('saved_file_path') ?? './files';
+    this.savedFilePath = this.configService.get('saved_file_path') ?? './files';
+
     try {
-      await mkdir(savedFilePath, { recursive: true });
+      await mkdir(this.savedFilePath, { recursive: true });
     } catch (e) {
-      console.error('Invalid Saved File Path');
+      const msg = `Invalid Saved File Path: ${e}`;
+      // console.error(msg);
+      this.loggerService.addErrorLog(msg);
       process.exit();
     }
-
-    this.savedFilePath = savedFilePath;
   }
 
   @Get('list')
@@ -112,8 +127,12 @@ export class FileController {
     @Req() request: Request,
     @Res() response: Response,
   ): Promise<void> {
+    const auth = (request as any).authModel;
+    if (!AuthModel.isAuthModel(auth)) {
+      throw new HttpException('', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     const filename = request.params?.name;
-    const t = this;
     const pathToFile = path.join(this.savedFilePath, filename);
 
     const [statResult, fileDetails] = await Promise.allSettled([
@@ -121,9 +140,26 @@ export class FileController {
       this.fileService.getFileByName(filename),
     ]);
 
-    console.log('');
+    if (isRejected(fileDetails)) {
+      if (fileDetails.reason instanceof NotFoundError) {
+        if (auth.authorized) {
+          console.log('');
+          throw new HttpException('File not found', HttpStatus.NOT_FOUND);
+        } else {
+          throw new HttpException('', HttpStatus.BAD_REQUEST);
+        }
+      }
+    }
 
-    // TODO Check the results of the above
+    if (isRejected(statResult)) {
+      if (auth.authorized) {
+        console.log('');
+        throw new HttpException('File not found', HttpStatus.NOT_FOUND);
+      } else {
+        throw new HttpException('', HttpStatus.BAD_REQUEST);
+      }
+    }
+
     // TODO parse the file details to determine if the file is private
     // TODO Serve the file
   }
