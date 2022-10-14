@@ -16,6 +16,7 @@ export class UploadedFile {
   constructor(
     protected _filepath: string,
     protected _originalFilename: string,
+    protected _mimetype: string,
     protected _size: number,
   ) {}
 
@@ -24,6 +25,9 @@ export class UploadedFile {
   }
   get originalFilename() {
     return this._originalFilename;
+  }
+  get mimetype() {
+    return this._mimetype;
   }
   get size() {
     return this._size;
@@ -57,13 +61,19 @@ export class UploadedFile {
 
     const filepathTest = isString(file.filepath);
     const originalFilenameTest = isString(file.originalFilename);
+    const mimetypeTest = isString(file.mimetype);
     const sizeTest = isNumber(file.size);
 
-    if (!filepathTest || !originalFilenameTest || !sizeTest) {
+    if (!filepathTest || !originalFilenameTest || !mimetypeTest || !sizeTest) {
       throw new InvalidInputError('Invalid Uploaded File format');
     }
 
-    return new UploadedFile(file.filepath, file.originalFilename, file.size);
+    return new UploadedFile(
+      file.filepath,
+      file.originalFilename,
+      file.mimetype,
+      file.size,
+    );
   }
 
   static sanitizeFilename(filename: string): string {
@@ -83,6 +93,7 @@ export interface NewFileDetailsJSON {
   filename: string;
   dateAdded: string;
   authorId: string;
+  mimetype: string;
   size: number;
   isPrivate: boolean;
 }
@@ -93,6 +104,7 @@ export class NewFileDetails {
     protected _filename: string,
     protected _dateAdded: Date,
     protected _authorId: string,
+    protected _mimetype: string,
     protected _size: number,
     protected _isPrivate: boolean,
   ) {}
@@ -109,6 +121,9 @@ export class NewFileDetails {
   get authorId(): string {
     return this._authorId;
   }
+  get mimetype(): string {
+    return this._mimetype;
+  }
   get size(): number {
     return this._size;
   }
@@ -122,6 +137,7 @@ export class NewFileDetails {
       filename: this.filename,
       dateAdded: this.dateAdded.toISOString(),
       authorId: this.authorId,
+      mimetype: this.mimetype,
       size: this.size,
       isPrivate: this.isPrivate,
     };
@@ -139,6 +155,7 @@ export class NewFileDetails {
       input.filename,
       dateAdded,
       input.authorId,
+      input.mimetype,
       input.size,
       input.isPrivate,
     );
@@ -153,6 +170,7 @@ export class NewFileDetails {
     const filenameTest = isString(input.filename);
     const dateAddedTest = isString(input.dateAdded);
     const authorIdTest = isString(input.authorId);
+    const mimetypeTest = isString(input.mimetype);
     const sizeTest = isNumber(input.size);
     const isPrivateTest = isBoolean(input.isPrivate);
 
@@ -161,6 +179,7 @@ export class NewFileDetails {
       filenameTest &&
       dateAddedTest &&
       authorIdTest &&
+      mimetypeTest &&
       sizeTest &&
       isPrivateTest
     );
@@ -178,10 +197,19 @@ export class FileDetails extends NewFileDetails {
     filename: string,
     dateAdded: Date,
     authorId: string,
+    mimetype: string,
     size: number,
     isPrivate: boolean,
   ) {
-    super(originalFilename, filename, dateAdded, authorId, size, isPrivate);
+    super(
+      originalFilename,
+      filename,
+      dateAdded,
+      authorId,
+      mimetype,
+      size,
+      isPrivate,
+    );
   }
 
   get id(): string {
@@ -205,6 +233,7 @@ export class FileDetails extends NewFileDetails {
       fileDetails.filename,
       fileDetails.dateAdded,
       fileDetails.authorId,
+      fileDetails.mimetype,
       fileDetails.size,
       fileDetails.isPrivate,
     );
@@ -223,6 +252,7 @@ export class FileDetails extends NewFileDetails {
       input.filename,
       dateAdded,
       input.authorId,
+      input.mimetype,
       input.size,
       input.isPrivate,
     );
@@ -238,6 +268,7 @@ export class FileDetails extends NewFileDetails {
     const filenameTest = isString(input.filename);
     const dateAddedTest = isString(input.dateAdded);
     const authorIdTest = isString(input.authorId);
+    const mimetypeTest = isString(input.mimetype);
     const sizeTest = isNumber(input.size);
     const isPrivateTest = isBoolean(input.isPrivate);
 
@@ -247,6 +278,7 @@ export class FileDetails extends NewFileDetails {
       filenameTest &&
       dateAddedTest &&
       authorIdTest &&
+      mimetypeTest &&
       sizeTest &&
       isPrivateTest
     );

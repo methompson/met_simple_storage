@@ -202,6 +202,7 @@ export class FileController {
     // If we've made it this far, the file exists and the user has rights
     // to it, we will serve it up.
 
+    response.type(fileDetailsResult.value.mimetype);
     response.sendFile(pathToFile);
   }
 
@@ -236,14 +237,15 @@ export class FileController {
             filename,
             dateAdded: new Date().toISOString(),
             authorId: userId,
+            mimetype: dat.mimetype,
             size: dat.size,
             isPrivate: parsedData.ops.isPrivate ?? true,
           }),
         );
 
         // Move files from temp folder to the new folder with new file name
-        const newImagePath = path.join(this._savedFilePath, filename);
-        moveOps.push(rename(dat.filepath, newImagePath));
+        const newFilePath = path.join(this._savedFilePath, filename);
+        moveOps.push(rename(dat.filepath, newFilePath));
       }
 
       await Promise.all(moveOps);
@@ -365,8 +367,8 @@ export class FileController {
       const ops: Promise<unknown>[] = [];
 
       files.forEach((el) => {
-        const newImagePath = path.join(this._savedFilePath, el.filename);
-        ops.push(rm(newImagePath));
+        const newFilePath = path.join(this._savedFilePath, el.filename);
+        ops.push(rm(newFilePath));
       });
 
       uploadedFiles.forEach((el) => {

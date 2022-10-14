@@ -66,23 +66,27 @@ describe('FileController', () => {
   const newFilename1 = 'newFileName1';
   const originalFilename1 = 'originalFileName1';
   const authorId1 = 'bd70a89c-b862-44ad-a980-a884ae9df5ad';
+  const mimetype1 = 'image/jpeg';
   const size1 = 1024;
 
   const id2 = '8c17b304-4fbf-477a-be84-05117ed4393e';
   const newFilename2 = 'newFileName2';
   const originalFilename2 = 'originalFileName2';
   const authorId2 = '32ea27be-c5b4-425b-b6ba-c5b67ecf9c63';
+  const mimetype2 = 'application/json';
   const size2 = 512;
 
   const file1 = {
     filepath: newFilename1,
     originalFilename: originalFilename1,
+    mimetype: mimetype1,
     size: size1,
   } as formidable.File;
 
   const file2 = {
     filepath: newFilename2,
     originalFilename: originalFilename2,
+    mimetype: mimetype2,
     size: size2,
   } as formidable.File;
 
@@ -92,6 +96,7 @@ describe('FileController', () => {
     filename: newFilename1,
     dateAdded: new Date(1).toISOString(),
     authorId: authorId1,
+    mimetype: mimetype1,
     size: size1,
     isPrivate: true,
   });
@@ -102,6 +107,7 @@ describe('FileController', () => {
     filename: newFilename2,
     dateAdded: new Date(2).toISOString(),
     authorId: authorId2,
+    mimetype: mimetype2,
     size: size2,
     isPrivate: false,
   });
@@ -289,7 +295,8 @@ describe('FileController', () => {
       } as unknown as Request;
 
       const sendFile = jest.fn();
-      const res = { sendFile } as unknown as Response;
+      const type = jest.fn();
+      const res = { sendFile, type } as unknown as Response;
 
       const getFileSpy = jest.spyOn(fds, 'getFileByName');
 
@@ -305,6 +312,9 @@ describe('FileController', () => {
 
       expect(sendFile).toHaveBeenCalledTimes(1);
       expect(sendFile).toHaveBeenCalledWith(filePath);
+
+      expect(type).toHaveBeenCalledTimes(1);
+      expect(type).toHaveBeenCalledWith(fileDetails2.mimetype);
     });
 
     test('Returns a file if the file exists, it is public and the user is authenticated', async () => {
@@ -328,7 +338,8 @@ describe('FileController', () => {
       } as unknown as Request;
 
       const sendFile = jest.fn();
-      const res = { sendFile } as unknown as Response;
+      const type = jest.fn();
+      const res = { sendFile, type } as unknown as Response;
 
       const getFileSpy = jest.spyOn(fds, 'getFileByName');
 
@@ -344,6 +355,9 @@ describe('FileController', () => {
 
       expect(sendFile).toHaveBeenCalledTimes(1);
       expect(sendFile).toHaveBeenCalledWith(filePath);
+
+      expect(type).toHaveBeenCalledTimes(1);
+      expect(type).toHaveBeenCalledWith(fileDetails2.mimetype);
     });
 
     test('Returns a file if the file exists, it is private and the user is authenticated', async () => {
@@ -367,7 +381,8 @@ describe('FileController', () => {
       } as unknown as Request;
 
       const sendFile = jest.fn();
-      const res = { sendFile } as unknown as Response;
+      const type = jest.fn();
+      const res = { sendFile, type } as unknown as Response;
 
       const getFileSpy = jest.spyOn(fds, 'getFileByName');
 
@@ -383,6 +398,9 @@ describe('FileController', () => {
 
       expect(sendFile).toHaveBeenCalledTimes(1);
       expect(sendFile).toHaveBeenCalledWith(filePath);
+
+      expect(type).toHaveBeenCalledTimes(1);
+      expect(type).toHaveBeenCalledWith(fileDetails1.mimetype);
     });
 
     test('Throws an error, if the file exists, the file is private and the user is not authenticated', async () => {

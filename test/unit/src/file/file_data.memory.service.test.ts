@@ -6,6 +6,7 @@ const originalFileName1 = 'zyx originalFileName1 0aihsdfnlk';
 const filename1 = '16713749-d83c-42c0-b4a8-4a29a04cd171';
 const dateAdded1 = new Date(1);
 const authorId1 = 'authorId1 ;aoidsl';
+const mimetype1 = 'image/jpeg';
 const size1 = 1024;
 const isPriave1 = true;
 
@@ -14,6 +15,7 @@ const newFile1 = new NewFileDetails(
   filename1,
   dateAdded1,
   authorId1,
+  mimetype1,
   size1,
   isPriave1,
 );
@@ -22,6 +24,7 @@ const originalFileName2 = 'abc originalFileName2 aspdfiln';
 const filename2 = '2b883407-6b52-40f1-b129-e64e857218ef';
 const dateAdded2 = new Date(2);
 const authorId2 = 'authorId2 awosdln';
+const mimetype2 = 'application/json';
 const size2 = 2048;
 const isPriave2 = false;
 
@@ -30,6 +33,7 @@ const newFile2 = new NewFileDetails(
   filename2,
   dateAdded2,
   authorId2,
+  mimetype2,
   size2,
   isPriave2,
 );
