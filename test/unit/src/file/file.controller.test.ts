@@ -1,14 +1,17 @@
 import * as fsPromises from 'fs/promises';
+import * as path from 'path';
 
 import formidable, { Formidable } from 'formidable';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { sign } from 'jsonwebtoken';
 
 import { FileController } from '@/src/file/file.controller';
 import { InMemoryFileDataService } from '@/src/file/file_data.memory.service';
 import { FileDetails, UploadedFile } from '@/src/models/file_models';
 import { LoggerService } from '@/src/logger/logger.service';
-import { AuthModel, NoAuthModel } from '@/src/models/auth_model';
+import { AuthModel } from '@/src/models/auth_model';
+import { HttpException, HttpStatus } from '@nestjs/common';
 
 type FormidableParseCalback = (
   err: any,
@@ -102,6 +105,15 @@ describe('FileController', () => {
     size: size2,
     isPrivate: false,
   });
+
+  const validToken = sign(
+    {
+      data: 'data',
+      iss: 'methompson-site',
+      exp: Math.floor(Date.now() / 1000) + 60 * 60,
+    },
+    'secret',
+  );
 
   beforeEach(() => {
     parse.mockReset();
@@ -259,7 +271,239 @@ describe('FileController', () => {
   });
 
   describe('getFileById', () => {
-    test('Returns a file if the file exists', async () => {
+    test('Returns a file if the file exists, it is public and the user has no authentication', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      stat.mockImplementationOnce(async () => {});
+
+      const req = {
+        authModel: new AuthModel({}),
+        params: {
+          filename: fileDetails2.filename,
+        },
+      } as unknown as Request;
+
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await fc.getFileByName(req, res);
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(fileDetails2.filename);
+
+      const filePath = path.join(fc.savedFilePath, fileDetails2.filename);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(1);
+      expect(sendFile).toHaveBeenCalledWith(filePath);
+    });
+
+    test('Returns a file if the file exists, it is public and the user is authenticated', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      stat.mockImplementationOnce(async () => {});
+
+      const am = AuthModel.fromJWTString(validToken);
+      expect(am.authorized).toBe(true);
+
+      const req = {
+        authModel: am,
+        params: {
+          filename: fileDetails2.filename,
+        },
+      } as unknown as Request;
+
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await fc.getFileByName(req, res);
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(fileDetails2.filename);
+
+      const filePath = path.join(fc.savedFilePath, fileDetails2.filename);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(1);
+      expect(sendFile).toHaveBeenCalledWith(filePath);
+    });
+
+    test('Returns a file if the file exists, it is private and the user is authenticated', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      stat.mockImplementationOnce(async () => {});
+
+      const am = AuthModel.fromJWTString(validToken);
+      expect(am.authorized).toBe(true);
+
+      const req = {
+        authModel: am,
+        params: {
+          filename: fileDetails1.filename,
+        },
+      } as unknown as Request;
+
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await fc.getFileByName(req, res);
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(fileDetails1.filename);
+
+      const filePath = path.join(fc.savedFilePath, fileDetails1.filename);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(1);
+      expect(sendFile).toHaveBeenCalledWith(filePath);
+    });
+
+    test('Throws an error, if the file exists, the file is private and the user is not authenticated', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      stat.mockImplementationOnce(async () => {});
+
+      const req = {
+        authModel: new AuthModel({}),
+        params: {
+          filename: fileDetails1.filename,
+        },
+      } as unknown as Request;
+
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await expect(() => fc.getFileByName(req, res)).rejects.toThrow(
+        new HttpException('', HttpStatus.BAD_REQUEST),
+      );
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(fileDetails1.filename);
+
+      const filePath = path.join(fc.savedFilePath, fileDetails1.filename);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(0);
+    });
+
+    test('Throws an error, if the file exists, but has no DB entry, and the user is not authenticated', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      stat.mockImplementationOnce(async () => {});
+
+      const testName = 'test name';
+
+      const req = {
+        authModel: new AuthModel({}),
+        params: {
+          filename: testName,
+        },
+      } as unknown as Request;
+
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await expect(() => fc.getFileByName(req, res)).rejects.toThrow(
+        new HttpException('', HttpStatus.BAD_REQUEST),
+      );
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(testName);
+
+      const filePath = path.join(fc.savedFilePath, testName);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(0);
+    });
+
+    test('Throws an error, if the file exists, but has no DB entry, and the user is authenticated', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      stat.mockImplementationOnce(async () => {});
+
+      const am = AuthModel.fromJWTString(validToken);
+      expect(am.authorized).toBe(true);
+
+      const testName = 'test name';
+
+      const req = {
+        authModel: am,
+        params: {
+          filename: testName,
+        },
+      } as unknown as Request;
+
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await expect(() => fc.getFileByName(req, res)).rejects.toThrow(
+        new HttpException('File not found', HttpStatus.NOT_FOUND),
+      );
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(testName);
+
+      const filePath = path.join(fc.savedFilePath, testName);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(0);
+    });
+
+    test('Throws an error, if the file has a DB entry, but does not exist, and the user is not authenticated', async () => {
       const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
       const fc = new FileController(
         new ConfigService(),
@@ -272,14 +516,72 @@ describe('FileController', () => {
       });
 
       const req = {
-        authModel: new NoAuthModel(),
+        authModel: new AuthModel({}),
         params: {
-          name: fileDetails1.filename,
+          filename: fileDetails1.filename,
         },
       } as unknown as Request;
-      const res = {} as unknown as Response;
 
-      await fc.getFileByName(req, res);
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await expect(() => fc.getFileByName(req, res)).rejects.toThrow(
+        new HttpException('', HttpStatus.BAD_REQUEST),
+      );
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(fileDetails1.filename);
+
+      const filePath = path.join(fc.savedFilePath, fileDetails1.filename);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(0);
+    });
+
+    test('Throws an error, if the file has a DB entry, but does not exist, and the user is authenticated', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      stat.mockImplementationOnce(async () => {
+        throw new Error(testError);
+      });
+
+      const am = AuthModel.fromJWTString(validToken);
+      expect(am.authorized).toBe(true);
+
+      const req = {
+        authModel: am,
+        params: {
+          filename: fileDetails1.filename,
+        },
+      } as unknown as Request;
+
+      const sendFile = jest.fn();
+      const res = { sendFile } as unknown as Response;
+
+      const getFileSpy = jest.spyOn(fds, 'getFileByName');
+
+      await expect(() => fc.getFileByName(req, res)).rejects.toThrow(
+        new HttpException('File not found', HttpStatus.NOT_FOUND),
+      );
+
+      expect(getFileSpy).toHaveBeenCalledTimes(1);
+      expect(getFileSpy).toHaveBeenCalledWith(fileDetails1.filename);
+
+      const filePath = path.join(fc.savedFilePath, fileDetails1.filename);
+
+      expect(stat).toHaveBeenCalledTimes(1);
+      expect(stat).toHaveBeenCalledWith(filePath);
+
+      expect(sendFile).toHaveBeenCalledTimes(0);
     });
   });
 
@@ -458,7 +760,160 @@ describe('FileController', () => {
     });
   });
 
-  describe('deleteFiles', () => {});
+  describe('deleteFiles', () => {
+    test('Returns a JSON object of data about the deletion', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const req = {
+        body: [fileDetails1.filename, fileDetails2.filename],
+      } as unknown as Request;
+
+      const result = await fc.deleteFiles(req);
+      expect(result.length).toBe(2);
+
+      const result1 = result.find(
+        (el) => el.filename === fileDetails1.filename,
+      );
+      const result2 = result.find(
+        (el) => el.filename === fileDetails2.filename,
+      );
+
+      expect(result1.fileDetails).toStrictEqual(fileDetails1.toJSON());
+      expect(result1.error).toBeUndefined();
+      expect(result1.filename).toBe(fileDetails1.filename);
+
+      expect(result2.fileDetails).toStrictEqual(fileDetails2.toJSON());
+      expect(result2.error).toBeUndefined();
+      expect(result2.filename).toBe(fileDetails2.filename);
+    });
+
+    test('Returns error details from fileService.delete files', async () => {
+      const badFilename = 'badFilename';
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const req = {
+        body: [fileDetails1.filename, badFilename],
+      } as unknown as Request;
+
+      const result = await fc.deleteFiles(req);
+      expect(result.length).toBe(2);
+
+      const result1 = result.find(
+        (el) => el.filename === fileDetails1.filename,
+      );
+      const result2 = result.find((el) => el.filename === badFilename);
+
+      expect(result1.fileDetails).toStrictEqual(fileDetails1.toJSON());
+      expect(result1.error).toBeUndefined();
+      expect(result1.filename).toBe(fileDetails1.filename);
+
+      expect(result2.fileDetails).toBeUndefined();
+      expect(result2.error).not.toBeUndefined();
+      expect(result2.filename).toBe(badFilename);
+    });
+
+    test('Runs several functions with specific inputs', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const body = [fileDetails1.filename, fileDetails2.filename];
+
+      const req = { body } as unknown as Request;
+
+      const deleteFSSpy = jest.spyOn(fds, 'deleteFiles');
+
+      await fc.deleteFiles(req);
+
+      expect(deleteFSSpy).toHaveBeenCalledTimes(1);
+      expect(deleteFSSpy).toHaveBeenCalledWith(body);
+
+      expect(rm).toHaveBeenCalledTimes(2);
+
+      const path1 = path.join(fc.savedFilePath, fileDetails1.filename);
+      const path2 = path.join(fc.savedFilePath, fileDetails2.filename);
+      expect(rm).toHaveBeenCalledWith(path1);
+      expect(rm).toHaveBeenCalledWith(path2);
+    });
+
+    test('Throws an error if fileService.deleteFiles throws an error', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const body = [fileDetails1.filename, fileDetails2.filename];
+
+      const req = { body } as unknown as Request;
+
+      const deleteFSSpy = jest.spyOn(fds, 'deleteFiles');
+      deleteFSSpy.mockImplementationOnce(async () => {
+        throw new Error(testError);
+      });
+
+      await expect(() => fc.deleteFiles(req)).rejects.toThrow(
+        new HttpException('', HttpStatus.BAD_REQUEST),
+      );
+
+      expect(deleteFSSpy).toHaveBeenCalledTimes(1);
+      expect(deleteFSSpy).toHaveBeenCalledWith(body);
+
+      expect(rm).toHaveBeenCalledTimes(2);
+
+      const path1 = path.join(fc.savedFilePath, fileDetails1.filename);
+      const path2 = path.join(fc.savedFilePath, fileDetails2.filename);
+      expect(rm).toHaveBeenCalledWith(path1);
+      expect(rm).toHaveBeenCalledWith(path2);
+    });
+
+    test('Throws an error if deleteFilesFromFileSystem throws an error', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const body = [fileDetails1.filename, fileDetails2.filename];
+
+      const req = { body } as unknown as Request;
+
+      const deleteFSSpy = jest.spyOn(fds, 'deleteFiles');
+
+      rm.mockImplementationOnce(async () => {
+        throw new Error(testError);
+      });
+
+      await expect(() => fc.deleteFiles(req)).rejects.toThrow(
+        new HttpException('', HttpStatus.BAD_REQUEST),
+      );
+
+      expect(deleteFSSpy).toHaveBeenCalledTimes(1);
+      expect(deleteFSSpy).toHaveBeenCalledWith(body);
+
+      expect(rm).toHaveBeenCalledTimes(2);
+
+      const path1 = path.join(fc.savedFilePath, fileDetails1.filename);
+      const path2 = path.join(fc.savedFilePath, fileDetails2.filename);
+      expect(rm).toHaveBeenCalledWith(path1);
+      expect(rm).toHaveBeenCalledWith(path2);
+    });
+  });
 
   describe('parseFilesAndFields', () => {
     test('returns a file and default ops', async () => {

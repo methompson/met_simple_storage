@@ -1,4 +1,7 @@
-import { isString } from '@/src/utils/type_guards';
+import { decode } from 'jsonwebtoken';
+
+import { isRecord, isString } from '@/src/utils/type_guards';
+import { InvalidInputError } from '@/src/errors';
 
 export class AuthModel {
   constructor(protected decodedToken: Record<string, unknown> | null) {}
@@ -13,12 +16,12 @@ export class AuthModel {
   get authorized(): boolean {
     return (
       Object.keys(this.decodedToken).length > 0 &&
-      this.isExpired &&
+      this.isNotExpired &&
       this.correctIss
     );
   }
 
-  get isExpired(): boolean {
+  get isNotExpired(): boolean {
     const exp = this.decodedToken?.exp ?? 0;
     return exp >= new Date().getTime() / 1000;
   }
@@ -48,13 +51,22 @@ export class AuthModel {
   static isAuthModel(input: unknown): input is AuthModel {
     return input instanceof AuthModel;
   }
+
+  static fromJWTString(token: string): AuthModel {
+    const decodedToken = decode(token);
+
+    if (!isRecord(decodedToken)) {
+      throw new InvalidInputError('Invalid Token');
+    }
+
+    return new AuthModel(decodedToken);
+  }
 }
 
+// This is used only to skip authorization checks. It always returns true
+// for users, whether they're authenticated or not. Should only be used
+// for testing.
 export class NoAuthModel extends AuthModel {
-  constructor() {
-    super({});
-  }
-
   get authorized(): boolean {
     return true;
   }

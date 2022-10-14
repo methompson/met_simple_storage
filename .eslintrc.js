@@ -114,5 +114,6 @@ module.exports = {
       'single',
     ],
     'import/no-named-as-default-member': 'off',
+    'prettier/prettier': 'warn',
   },
 };

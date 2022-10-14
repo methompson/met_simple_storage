@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   HttpException,
   HttpStatus,
+  HttpCode,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
@@ -22,18 +23,24 @@ import { UserId } from '@/src/middleware/auth_model_decorator';
 import { RequestLogInterceptor } from '@/src/middleware/request_log.interceptor';
 
 import {
+  DeleteDetailsJSON,
   FileDataService,
   FileListOutputJSON,
 } from '@/src/file/file_data.service';
 import { LoggerService } from '@/src/logger/logger.service';
 import {
+  FileDetails,
   FileDetailsJSON,
   NewFileDetails,
   ParsedFilesAndFields,
   UploadedFile,
 } from '@/src/models/file_models';
 
-import { isString } from '@/src/utils/type_guards';
+import {
+  isNullOrUndefined,
+  isString,
+  isStringArray,
+} from '@/src/utils/type_guards';
 import { getIntFromString } from '@/src/utils/get_number_from_string';
 import { NotFoundError } from '@/src/errors';
 import { AuthModel } from '../models/auth_model';
@@ -47,8 +54,8 @@ function isRejected(
 @UseInterceptors(RequestLogInterceptor)
 @Controller({ path: 'api' })
 export class FileController {
-  private uploadPath: string;
-  private savedFilePath: string;
+  private _uploadPath = '';
+  private _savedFilePath = './files';
 
   constructor(
     private configService: ConfigService,
@@ -58,15 +65,23 @@ export class FileController {
     this.init();
   }
 
+  get uploadPath(): string {
+    return this._uploadPath;
+  }
+
+  get savedFilePath(): string {
+    return this._savedFilePath;
+  }
+
   /**
    * Configures the temp and saved file paths.
    */
   async init() {
-    this.uploadPath = this.configService.get('temp_file_path') ?? '';
+    this._uploadPath = this.configService.get('temp_file_path') ?? '';
 
-    if (this.uploadPath.length > 0) {
+    if (this._uploadPath.length > 0) {
       try {
-        await mkdir(this.uploadPath, {
+        await mkdir(this._uploadPath, {
           recursive: true,
         });
       } catch (e) {
@@ -77,16 +92,24 @@ export class FileController {
       }
     }
 
-    this.savedFilePath = this.configService.get('saved_file_path') ?? './files';
+    this._savedFilePath =
+      this.configService.get('saved_file_path') ?? './files';
 
     try {
-      await mkdir(this.savedFilePath, { recursive: true });
+      await mkdir(this._savedFilePath, { recursive: true });
     } catch (e) {
       const msg = `Invalid Saved File Path: ${e}`;
       // console.error(msg);
       this.loggerService.addErrorLog(msg);
       process.exit();
     }
+  }
+
+  @Get()
+  async getCommand() {
+    return {
+      hello: 'world',
+    };
   }
 
   @Get('list')
@@ -122,7 +145,7 @@ export class FileController {
    * Retrieves a file by the new filename that was generated from the
    * uploadFile function.
    */
-  @Get(':name')
+  @Get(':filename')
   async getFileByName(
     @Req() request: Request,
     @Res() response: Response,
@@ -132,36 +155,54 @@ export class FileController {
       throw new HttpException('', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    const filename = request.params?.name;
-    const pathToFile = path.join(this.savedFilePath, filename);
+    const filename = request.params?.filename;
+    const pathToFile = path.join(this._savedFilePath, filename);
 
-    const [statResult, fileDetails] = await Promise.allSettled([
+    const [statResult, fileDetailsResult] = await Promise.allSettled([
       stat(pathToFile),
       this.fileService.getFileByName(filename),
     ]);
 
-    if (isRejected(fileDetails)) {
-      if (fileDetails.reason instanceof NotFoundError) {
-        if (auth.authorized) {
-          console.log('');
+    if (isRejected(fileDetailsResult)) {
+      this.loggerService.addErrorLog(
+        `Error Getting File: ${fileDetailsResult.reason}`,
+      );
+
+      if (auth.authorized) {
+        if (fileDetailsResult.reason instanceof NotFoundError) {
           throw new HttpException('File not found', HttpStatus.NOT_FOUND);
-        } else {
-          throw new HttpException('', HttpStatus.BAD_REQUEST);
         }
+
+        throw new HttpException('', HttpStatus.INTERNAL_SERVER_ERROR);
+      } else {
+        throw new HttpException('', HttpStatus.BAD_REQUEST);
       }
     }
 
     if (isRejected(statResult)) {
+      this.loggerService.addErrorLog(
+        `Error Getting File: ${statResult.reason}`,
+      );
+
       if (auth.authorized) {
-        console.log('');
         throw new HttpException('File not found', HttpStatus.NOT_FOUND);
       } else {
         throw new HttpException('', HttpStatus.BAD_REQUEST);
       }
     }
 
-    // TODO parse the file details to determine if the file is private
-    // TODO Serve the file
+    // parse the file details to determine if the file is private
+    if (fileDetailsResult.value.isPrivate && !auth.authorized) {
+      // we throw a 400 instead of a 401 just to keep the codes consistent.
+      // We don't want to let the user know anything about the files from
+      // the error codes.
+      throw new HttpException('', HttpStatus.BAD_REQUEST);
+    }
+
+    // If we've made it this far, the file exists and the user has rights
+    // to it, we will serve it up.
+
+    response.sendFile(pathToFile);
   }
 
   @Post('upload')
@@ -174,7 +215,7 @@ export class FileController {
 
     // Parse uploaded data
     try {
-      parsedData = await this.parseFilesAndFields(request, this.uploadPath);
+      parsedData = await this.parseFilesAndFields(request, this._uploadPath);
     } catch (e) {
       const msg = isString(e?.message) ? e.message : `${e}`;
       throw new HttpException(msg, HttpStatus.BAD_REQUEST);
@@ -201,7 +242,7 @@ export class FileController {
         );
 
         // Move files from temp folder to the new folder with new file name
-        const newImagePath = path.join(this.savedFilePath, filename);
+        const newImagePath = path.join(this._savedFilePath, filename);
         moveOps.push(rename(dat.filepath, newImagePath));
       }
 
@@ -220,9 +261,56 @@ export class FileController {
   }
 
   @Post('delete')
+  @HttpCode(200)
   @UseInterceptors(AuthRequiredIncerceptor)
-  async deleteFiles(@Req() request: Request): Promise<void> {
-    throw new Error('Unimplemented');
+  async deleteFiles(@Req() request: Request): Promise<DeleteDetailsJSON[]> {
+    // get file name
+    const body = request.body;
+
+    if (!isStringArray(body)) {
+      throw new HttpException('Invalid Input', HttpStatus.BAD_REQUEST);
+    }
+
+    // Delete the file(s)
+    const [deleteFilesDBResult, deleteFilesResult] = await Promise.allSettled([
+      this.fileService.deleteFiles(body),
+      this.deleteFilesFromFileSystem(body),
+    ]);
+
+    // If there's an error from the DB
+    if (isRejected(deleteFilesDBResult)) {
+      this.loggerService.addErrorLog(
+        `Error Deleting File: ${deleteFilesDBResult.reason}`,
+      );
+
+      throw new HttpException('', HttpStatus.BAD_REQUEST);
+    }
+
+    // If there's an error from the file system
+    if (isRejected(deleteFilesResult)) {
+      this.loggerService.addErrorLog(
+        `Error Deleting File: ${deleteFilesResult.reason}`,
+      );
+
+      throw new HttpException('', HttpStatus.BAD_REQUEST);
+    }
+
+    // Returning the file details
+    return deleteFilesDBResult.value.map((el) => {
+      const result: DeleteDetailsJSON = {
+        filename: el.filename,
+      };
+
+      if (!isNullOrUndefined(el.error)) {
+        result.error = el.error;
+      }
+
+      if (el.fileDetails instanceof FileDetails) {
+        result.fileDetails = el.fileDetails.toJSON();
+      }
+
+      return result;
+    });
   }
 
   async parseFilesAndFields(
@@ -277,7 +365,7 @@ export class FileController {
       const ops: Promise<unknown>[] = [];
 
       files.forEach((el) => {
-        const newImagePath = path.join(this.savedFilePath, el.filename);
+        const newImagePath = path.join(this._savedFilePath, el.filename);
         ops.push(rm(newImagePath));
       });
 
@@ -289,5 +377,13 @@ export class FileController {
     } catch (e) {
       this.loggerService.addErrorLog(`Unable to roll back writes: ${e}`);
     }
+  }
+
+  async deleteFilesFromFileSystem(filenames: string[]): Promise<void> {
+    const ops = filenames.map((filename) =>
+      rm(path.join(this._savedFilePath, filename)),
+    );
+
+    await Promise.all(ops);
   }
 }

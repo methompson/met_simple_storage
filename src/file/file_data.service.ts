@@ -31,6 +31,12 @@ export interface DeleteDetails {
   error?: string;
 }
 
+export interface DeleteDetailsJSON {
+  filename: string;
+  fileDetails?: FileDetailsJSON;
+  error?: string;
+}
+
 @Injectable()
 export abstract class FileDataService {
   abstract addFiles(fileDetails: NewFileDetails[]): Promise<FileDetails[]>;

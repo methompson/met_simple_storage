@@ -23,7 +23,7 @@ export class AuthRequiredIncerceptor implements NestInterceptor {
     const authModel = request.authModel;
     if (!AuthModel.isAuthModel(authModel)) {
       throw new HttpException(
-        'Invalid Autorization Token',
+        'Invalid Authorization Token',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -36,7 +36,7 @@ export class AuthRequiredIncerceptor implements NestInterceptor {
 
     if (userId.length === 0) {
       throw new HttpException(
-        'Invalid Autorization Token',
+        'Invalid Authorization Token',
         HttpStatus.BAD_REQUEST,
       );
     }
