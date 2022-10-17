@@ -11,6 +11,8 @@ export enum FileSortOption {
 }
 
 export interface GetFileListOptions {
+  page?: number;
+  pagination?: number;
   sortBy?: FileSortOption;
 }
 
@@ -27,7 +29,7 @@ export interface FileListOutputJSON {
 // Provides information on files deleted
 export interface DeleteDetails {
   filename: string;
-  fileDetails: FileDetails | null;
+  fileDetails?: FileDetails;
   error?: string;
 }
 
@@ -37,17 +39,24 @@ export interface DeleteDetailsJSON {
   error?: string;
 }
 
+export interface DeleteFilesJSON {
+  filename: string;
+  error?: string;
+}
+
+export interface DeleteResultJSON {
+  filename: string;
+  fileDetails?: FileDetailsJSON;
+  errors: string[];
+}
+
 @Injectable()
 export abstract class FileDataService {
   abstract addFiles(fileDetails: NewFileDetails[]): Promise<FileDetails[]>;
 
-  abstract getFileList(
-    page: number,
-    pagination: number,
-    options?: GetFileListOptions,
-  ): Promise<FileListOutput>;
+  abstract getFileList(options?: GetFileListOptions): Promise<FileListOutput>;
 
   abstract getFileByName(name: string): Promise<FileDetails>;
 
-  abstract deleteFiles(names: string[]): Promise<DeleteDetails[]>;
+  abstract deleteFiles(names: string[]): Promise<Record<string, DeleteDetails>>;
 }

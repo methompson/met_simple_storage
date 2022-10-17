@@ -99,7 +99,9 @@ describe('InMemoryFileDataService', () => {
       fds.addFiles([newFile1, newFile2]);
       expect(Object.keys(fds.files).length).toBe(2);
 
-      const files = await fds.getFileList(1, 20, {
+      const files = await fds.getFileList({
+        page: 1,
+        pagination: 20,
         sortBy: FileSortOption.DateAdded,
       });
       expect(files.files.length).toBe(2);
@@ -133,7 +135,7 @@ describe('InMemoryFileDataService', () => {
       fds.addFiles([newFile1, newFile2, newFile3, newFile4]);
       expect(Object.keys(fds.files).length).toBe(4);
 
-      const files = await fds.getFileList(1, 2);
+      const files = await fds.getFileList({ page: 1, pagination: 2 });
       expect(files.morePages).toBe(true);
     });
 
@@ -141,7 +143,7 @@ describe('InMemoryFileDataService', () => {
       const fds = new InMemoryFileDataService();
       expect(Object.keys(fds.files).length).toBe(0);
 
-      const files = await fds.getFileList(1, 2);
+      const files = await fds.getFileList({ page: 1, pagination: 2 });
       expect(files.morePages).toBe(false);
       expect(files.files).toStrictEqual([]);
     });
@@ -183,9 +185,11 @@ describe('InMemoryFileDataService', () => {
 
       expect(Object.keys(fds.files).length).toBe(1);
 
-      expect(result[0].fileDetails.toJSON()).toStrictEqual(file1.toJSON());
-      expect(result[0].filename).toBe(file1.filename);
-      expect(result[0].error).toBeUndefined();
+      expect(result[file1.filename].fileDetails.toJSON()).toStrictEqual(
+        file1.toJSON(),
+      );
+      expect(result[file1.filename].filename).toBe(file1.filename);
+      expect(result[file1.filename].error).toBeUndefined();
     });
 
     test('Deletes multiple files from the files object', async () => {
@@ -199,12 +203,16 @@ describe('InMemoryFileDataService', () => {
 
       expect(Object.keys(fds.files).length).toBe(0);
 
-      expect(result[0].fileDetails.toJSON()).toStrictEqual(file1.toJSON());
-      expect(result[0].filename).toBe(file1.filename);
-      expect(result[0].error).toBeUndefined();
-      expect(result[1].fileDetails.toJSON()).toStrictEqual(file2.toJSON());
-      expect(result[1].filename).toBe(file2.filename);
-      expect(result[1].error).toBeUndefined();
+      expect(result[file1.filename].fileDetails.toJSON()).toStrictEqual(
+        file1.toJSON(),
+      );
+      expect(result[file1.filename].filename).toBe(file1.filename);
+      expect(result[file1.filename].error).toBeUndefined();
+      expect(result[file2.filename].fileDetails.toJSON()).toStrictEqual(
+        file2.toJSON(),
+      );
+      expect(result[file2.filename].filename).toBe(file2.filename);
+      expect(result[file2.filename].error).toBeUndefined();
     });
 
     test('Provides error information for all files not deleted', async () => {
@@ -214,11 +222,11 @@ describe('InMemoryFileDataService', () => {
       const fds = new InMemoryFileDataService([file1, file2]);
       expect(Object.keys(fds.files).length).toBe(2);
 
-      const id = 'test id';
-      const result = await fds.deleteFiles([id]);
-      expect(result[0].filename).toBe(id);
-      expect(result[0].fileDetails).toBe(null);
-      expect(result[0].error).toBe('File Does Not Exist');
+      const filename = 'test filename';
+      const result = await fds.deleteFiles([filename]);
+      expect(result[filename].filename).toBe(filename);
+      expect(result[filename].fileDetails).toBe(null);
+      expect(result[filename].error).toBe('File Does Not Exist In Database');
     });
   });
 });

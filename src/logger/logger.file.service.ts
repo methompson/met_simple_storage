@@ -7,7 +7,7 @@ import { Request, Response } from 'express';
 import { LoggerController } from '@/src/logger/logger.controller';
 
 const FILE_PATH = 'logs';
-const FILE_NAME = 'blog.log';
+const FILE_NAME = 'file.log';
 const TOTAL_OLD_LOGS = 5;
 const MAX_LOG_SIZE_IN_BYTES = 512 * 1024;
 

@@ -24,6 +24,8 @@ import { RequestLogInterceptor } from '@/src/middleware/request_log.interceptor'
 
 import {
   DeleteDetailsJSON,
+  DeleteFilesJSON,
+  DeleteResultJSON,
   FileDataService,
   FileListOutputJSON,
 } from '@/src/file/file_data.service';
@@ -124,7 +126,7 @@ export class FileController {
       : 20;
 
     try {
-      const fileList = await this.fileService.getFileList(page, pagination);
+      const fileList = await this.fileService.getFileList({ page, pagination });
 
       const files = fileList.files.map((el) => el.toJSON());
 
@@ -254,7 +256,7 @@ export class FileController {
       return savedFiles.map((f) => f.toJSON());
     } catch (e) {
       await this.rollBackWrites(newFiles, parsedData.files);
-      this.loggerService.addErrorLog('Error uploading files: ${e}');
+      this.loggerService.addErrorLog(`Error uploading files: ${e}`);
       throw new HttpException(
         'Error Uploading Files',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -265,7 +267,7 @@ export class FileController {
   @Post('delete')
   @HttpCode(200)
   @UseInterceptors(AuthRequiredIncerceptor)
-  async deleteFiles(@Req() request: Request): Promise<DeleteDetailsJSON[]> {
+  async deleteFiles(@Req() request: Request): Promise<DeleteResultJSON[]> {
     // get file name
     const body = request.body;
 
@@ -285,7 +287,7 @@ export class FileController {
         `Error Deleting File: ${deleteFilesDBResult.reason}`,
       );
 
-      throw new HttpException('', HttpStatus.BAD_REQUEST);
+      throw new HttpException('', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     // If there's an error from the file system
@@ -294,24 +296,39 @@ export class FileController {
         `Error Deleting File: ${deleteFilesResult.reason}`,
       );
 
-      throw new HttpException('', HttpStatus.BAD_REQUEST);
+      throw new HttpException('', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    // Returning the file details
-    return deleteFilesDBResult.value.map((el) => {
-      const result: DeleteDetailsJSON = {
-        filename: el.filename,
-      };
+    return body.map((filename): DeleteResultJSON => {
+      const output: DeleteResultJSON = { filename, errors: [] };
 
-      if (!isNullOrUndefined(el.error)) {
-        result.error = el.error;
+      const dbResult = deleteFilesDBResult.value[filename];
+      if (isNullOrUndefined(dbResult)) {
+        const msg = 'Invalid results from db operation';
+        this.loggerService.addErrorLog(msg);
+        throw new HttpException(msg, HttpStatus.INTERNAL_SERVER_ERROR);
       }
 
-      if (el.fileDetails instanceof FileDetails) {
-        result.fileDetails = el.fileDetails.toJSON();
+      if (!isNullOrUndefined(dbResult.error)) {
+        output.errors.push(dbResult.error);
       }
 
-      return result;
+      if (!isNullOrUndefined(dbResult.fileDetails)) {
+        output.fileDetails = dbResult.fileDetails.toJSON();
+      }
+
+      const fileSystemResult = deleteFilesResult.value[filename];
+      if (isNullOrUndefined(fileSystemResult)) {
+        const msg = 'Invalid results from file system operation';
+        this.loggerService.addErrorLog(msg);
+        throw new HttpException(msg, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      if (!isNullOrUndefined(fileSystemResult.error)) {
+        output.errors.push(fileSystemResult.error);
+      }
+
+      return output;
     });
   }
 
@@ -381,11 +398,27 @@ export class FileController {
     }
   }
 
-  async deleteFilesFromFileSystem(filenames: string[]): Promise<void> {
-    const ops = filenames.map((filename) =>
-      rm(path.join(this._savedFilePath, filename)),
-    );
+  async deleteFilesFromFileSystem(
+    filenames: string[],
+  ): Promise<Record<string, DeleteDetailsJSON>> {
+    const output: Record<string, DeleteFilesJSON> = {};
+
+    const ops = filenames.map(async (filename) => {
+      try {
+        await rm(path.join(this._savedFilePath, filename));
+        output[filename] = {
+          filename,
+        };
+      } catch (e) {
+        output[filename] = {
+          filename,
+          error: e.toString(),
+        };
+      }
+    });
 
     await Promise.all(ops);
+
+    return output;
   }
 }

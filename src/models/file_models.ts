@@ -1,4 +1,6 @@
 import formidable from 'formidable';
+import { WithId, Document } from 'mongodb';
+
 import {
   isBoolean,
   isNumber,
@@ -143,6 +145,13 @@ export class NewFileDetails {
     };
   }
 
+  toMongo(): Record<string, unknown> {
+    return {
+      ...this.toJSON(),
+      dateAdded: this.dateAdded,
+    };
+  }
+
   static fromJSON(input: unknown): NewFileDetails {
     if (!NewFileDetails.isNewFileDetailsJSON(input)) {
       throw new InvalidInputError('Invalid File Details');
@@ -256,6 +265,18 @@ export class FileDetails extends NewFileDetails {
       input.size,
       input.isPrivate,
     );
+  }
+
+  static fromMongoDB(input: WithId<Document> | Document): FileDetails {
+    // console.log(JSON.stringify(input));
+    const dateAdded = input?.dateAdded?.toISOString();
+    const id = input?._id?.toString();
+
+    return FileDetails.fromJSON({
+      ...input,
+      id,
+      dateAdded,
+    });
   }
 
   static isFileDetailsJSON(input: unknown): input is FileDetailsJSON {

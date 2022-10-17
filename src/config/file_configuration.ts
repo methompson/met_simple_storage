@@ -2,7 +2,7 @@ import path from 'path';
 
 export function fileConfiguration() {
   let fileServerType = 'memory';
-  if (process.env.BLOG_SERVER_TYPE === 'mongo_db') {
+  if (process.env.FILE_SERVER_TYPE === 'mongo_db') {
     fileServerType = 'mongo_db';
   }
 

@@ -205,7 +205,7 @@ describe('FileController', () => {
       await fc.getFileList(req);
 
       expect(getFilesSpy).toHaveBeenCalledTimes(1);
-      expect(getFilesSpy).toHaveBeenCalledWith(1, 20);
+      expect(getFilesSpy).toHaveBeenCalledWith({ page: 1, pagination: 20 });
     });
 
     test('passes parsed values to getFileList', async () => {
@@ -232,7 +232,7 @@ describe('FileController', () => {
       await fc.getFileList(req);
 
       expect(getFilesSpy).toHaveBeenCalledTimes(1);
-      expect(getFilesSpy).toHaveBeenCalledWith(11, 23);
+      expect(getFilesSpy).toHaveBeenCalledWith({ page: 11, pagination: 23 });
     });
 
     test('passes default values to getFileList', async () => {
@@ -254,7 +254,7 @@ describe('FileController', () => {
       await fc.getFileList(req);
 
       expect(getFilesSpy).toHaveBeenCalledTimes(1);
-      expect(getFilesSpy).toHaveBeenCalledWith(1, 20);
+      expect(getFilesSpy).toHaveBeenCalledWith({ page: 1, pagination: 20 });
     });
 
     test('Throws an error if getFileList throws an error', async () => {
@@ -276,7 +276,7 @@ describe('FileController', () => {
     });
   });
 
-  describe('getFileById', () => {
+  describe('getFileByName', () => {
     test('Returns a file if the file exists, it is public and the user has no authentication', async () => {
       const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
       const fc = new FileController(
@@ -802,11 +802,11 @@ describe('FileController', () => {
       );
 
       expect(result1.fileDetails).toStrictEqual(fileDetails1.toJSON());
-      expect(result1.error).toBeUndefined();
+      expect(result1.errors).toStrictEqual([]);
       expect(result1.filename).toBe(fileDetails1.filename);
 
       expect(result2.fileDetails).toStrictEqual(fileDetails2.toJSON());
-      expect(result2.error).toBeUndefined();
+      expect(result2.errors).toStrictEqual([]);
       expect(result2.filename).toBe(fileDetails2.filename);
     });
 
@@ -832,12 +832,57 @@ describe('FileController', () => {
       const result2 = result.find((el) => el.filename === badFilename);
 
       expect(result1.fileDetails).toStrictEqual(fileDetails1.toJSON());
-      expect(result1.error).toBeUndefined();
+      expect(result1.errors).toStrictEqual([]);
       expect(result1.filename).toBe(fileDetails1.filename);
 
       expect(result2.fileDetails).toBeUndefined();
-      expect(result2.error).not.toBeUndefined();
+      expect(result2.errors.length).toBe(1);
+      expect(result2.errors).toContain('File Does Not Exist In Database');
       expect(result2.filename).toBe(badFilename);
+    });
+
+    test('Returns error details from deleteFilesFromFileSystem', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const path1 = path.join(fc.savedFilePath, fileDetails1.filename);
+      const path2 = path.join(fc.savedFilePath, fileDetails2.filename);
+
+      rm.mockImplementation((filepath) => {
+        if (filepath === path2) {
+          throw new Error(testError);
+        }
+      });
+
+      const req = {
+        body: [fileDetails1.filename, fileDetails2.filename],
+      } as unknown as Request;
+
+      const result = await fc.deleteFiles(req);
+      expect(result.length).toBe(2);
+
+      const result1 = result.find(
+        (el) => el.filename === fileDetails1.filename,
+      );
+      const result2 = result.find(
+        (el) => el.filename === fileDetails2.filename,
+      );
+
+      expect(rm).toHaveBeenCalledWith(path1);
+      expect(rm).toHaveBeenCalledWith(path2);
+
+      expect(result1.fileDetails).toStrictEqual(fileDetails1.toJSON());
+      expect(result1.errors).toStrictEqual([]);
+      expect(result1.filename).toBe(fileDetails1.filename);
+
+      expect(result2.fileDetails).toStrictEqual(fileDetails2.toJSON());
+      expect(result2.errors.length).toBe(1);
+      expect(result2.errors[0]).toContain(testError);
+      expect(result2.filename).toBe(fileDetails2.filename);
     });
 
     test('Runs several functions with specific inputs', async () => {
@@ -912,8 +957,7 @@ describe('FileController', () => {
       const req = { body } as unknown as Request;
 
       const deleteFSSpy = jest.spyOn(fds, 'deleteFiles');
-
-      rm.mockImplementationOnce(async () => {
+      deleteFSSpy.mockImplementationOnce(async () => {
         throw new Error(testError);
       });
 
@@ -1062,6 +1106,78 @@ describe('FileController', () => {
 
       expect(parse).toHaveBeenCalledTimes(1);
       expect(parse).toHaveBeenCalledWith(req, expect.anything());
+    });
+  });
+
+  describe('deleteFilesFromFileSystem', () => {
+    test('Returns results related to file operations', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const result = await fc.deleteFilesFromFileSystem(['a', 'b']);
+      expect(Object.keys(result).length).toBe(2);
+
+      expect(result.a?.filename).toBe('a');
+      expect(result.a?.error).toBe(undefined);
+
+      expect(result.b?.filename).toBe('b');
+      expect(result.b?.error).toBe(undefined);
+
+      const pathA = path.join(fc.savedFilePath, 'a');
+      const pathB = path.join(fc.savedFilePath, 'b');
+
+      expect(rm).toHaveBeenCalledTimes(2);
+      expect(rm).toHaveBeenCalledWith(pathA);
+      expect(rm).toHaveBeenCalledWith(pathB);
+    });
+
+    test('Returns error results related to file operations', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const errPath = path.join(fc.savedFilePath, 'a');
+      rm.mockImplementation((filePath) => {
+        if (filePath == errPath) {
+          throw new Error(testError);
+        }
+      });
+
+      const result = await fc.deleteFilesFromFileSystem(['a', 'b']);
+      expect(Object.keys(result).length).toBe(2);
+
+      expect(result.a?.filename).toBe('a');
+      expect(result.a?.error?.toString()).toContain(testError);
+      expect(result.b?.filename).toBe('b');
+      expect(result.b?.error).toBe(undefined);
+
+      const pathA = path.join(fc.savedFilePath, 'a');
+      const pathB = path.join(fc.savedFilePath, 'b');
+
+      expect(rm).toHaveBeenCalledTimes(2);
+      expect(rm).toHaveBeenCalledWith(pathA);
+      expect(rm).toHaveBeenCalledWith(pathB);
+    });
+
+    test('Returns an empty object if an empty array is passed in', async () => {
+      const fds = new InMemoryFileDataService([fileDetails1, fileDetails2]);
+      const fc = new FileController(
+        new ConfigService(),
+        fds,
+        new LoggerService([]),
+      );
+
+      const result = await fc.deleteFilesFromFileSystem([]);
+      expect(Object.keys(result).length).toBe(0);
+
+      expect(rm).toHaveBeenCalledTimes(0);
     });
   });
 });

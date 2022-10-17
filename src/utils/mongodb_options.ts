@@ -8,17 +8,20 @@ interface MongoDBOptions {
 }
 
 function isMongoDBOptions(value: unknown): value is MongoDBOptions {
-  if (
-    !isRecord(value) ||
-    !isString(value.username) ||
-    !isString(value.password) ||
-    !isString(value.url) ||
-    !(isString(value.port) || isNumber(value.port) || value.port === undefined)
-  ) {
+  if (!isRecord(value)) {
     return false;
   }
 
-  return true;
+  const usernameTest = isString(value.username);
+  const passwordTest = isString(value.password);
+  const urlTest = isString(value.url);
+  const portTest = !(
+    isString(value.port) ||
+    isNumber(value.port) ||
+    value.port === undefined
+  );
+
+  return usernameTest && passwordTest && urlTest && portTest;
 }
 
 export { MongoDBOptions, isMongoDBOptions };

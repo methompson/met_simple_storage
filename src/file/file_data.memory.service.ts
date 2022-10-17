@@ -43,11 +43,10 @@ export class InMemoryFileDataService implements FileDataService {
     return files;
   }
 
-  async getFileList(
-    page = 1,
-    pagination = 20,
-    options?: GetFileListOptions,
-  ): Promise<FileListOutput> {
+  async getFileList(options?: GetFileListOptions): Promise<FileListOutput> {
+    const page = options?.page ?? 1;
+    const pagination = options?.pagination ?? 20;
+
     const stringCompare = (a: string, b: string) => a.localeCompare(b);
 
     const sortByName = (a: FileDetails, b: FileDetails) =>
@@ -87,23 +86,23 @@ export class InMemoryFileDataService implements FileDataService {
     return file;
   }
 
-  async deleteFiles(names: string[]): Promise<DeleteDetails[]> {
-    const output: DeleteDetails[] = [];
+  async deleteFiles(names: string[]): Promise<Record<string, DeleteDetails>> {
+    const output: Record<string, DeleteDetails> = {};
 
     for (const filename of names) {
       const file = this.files[filename];
       if (!isNullOrUndefined(file)) {
         delete this.files[filename];
-        output.push({
+        output[filename] = {
           filename,
           fileDetails: file,
-        });
+        };
       } else {
-        output.push({
+        output[filename] = {
           filename,
           fileDetails: null,
-          error: 'File Does Not Exist',
-        });
+          error: 'File Does Not Exist In Database',
+        };
       }
     }
 

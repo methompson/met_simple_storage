@@ -29,7 +29,7 @@ export class MongoLoggerController implements LoggerController {
     const db = await this.mongoDBClient.db;
 
     // Enforce required values
-    const blogCollection = await db.createCollection(loggingCollectionName, {
+    const logCollection = await db.createCollection(loggingCollectionName, {
       validator: {
         $jsonSchema: {
           bsonType: 'object',
@@ -48,7 +48,7 @@ export class MongoLoggerController implements LoggerController {
       },
     });
 
-    await blogCollection.createIndex({ date: 1 });
+    await logCollection.createIndex({ date: 1 });
   }
 
   protected get loggerCollection(): Promise<Collection<Document>> {
