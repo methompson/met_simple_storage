@@ -1,4 +1,3 @@
-import { mkdir, rename, rm, stat } from 'fs/promises';
 import * as path from 'path';
 
 import {
@@ -23,15 +22,12 @@ import { UserId } from '@/src/middleware/auth_model_decorator';
 import { RequestLogInterceptor } from '@/src/middleware/request_log.interceptor';
 
 import {
-  DeleteDetailsJSON,
-  DeleteFilesJSON,
   DeleteResultJSON,
   FileDataService,
   FileListOutputJSON,
 } from '@/src/file/file_data.service';
 import { LoggerService } from '@/src/logger/logger.service';
 import {
-  FileDetails,
   FileDetailsJSON,
   NewFileDetails,
   ParsedFilesAndFields,
@@ -46,6 +42,7 @@ import {
 import { getIntFromString } from '@/src/utils/get_number_from_string';
 import { NotFoundError } from '@/src/errors';
 import { AuthModel } from '../models/auth_model';
+import { FileSystemService } from './file_system_service';
 
 function isRejected(
   input: PromiseSettledResult<unknown>,
@@ -83,9 +80,7 @@ export class FileController {
 
     if (this._uploadPath.length > 0) {
       try {
-        await mkdir(this._uploadPath, {
-          recursive: true,
-        });
+        new FileSystemService().makeDirectory(this._uploadPath);
       } catch (e) {
         const msg = `Invalid Upload File Path: ${e}`;
         // console.error(msg);
@@ -98,20 +93,13 @@ export class FileController {
       this.configService.get('saved_file_path') ?? './files';
 
     try {
-      await mkdir(this._savedFilePath, { recursive: true });
+      new FileSystemService().makeDirectory(this._savedFilePath);
     } catch (e) {
       const msg = `Invalid Saved File Path: ${e}`;
       // console.error(msg);
       this.loggerService.addErrorLog(msg);
       process.exit();
     }
-  }
-
-  @Get()
-  async getCommand() {
-    return {
-      hello: 'world',
-    };
   }
 
   @Get('list')
@@ -161,7 +149,7 @@ export class FileController {
     const pathToFile = path.join(this._savedFilePath, filename);
 
     const [statResult, fileDetailsResult] = await Promise.allSettled([
-      stat(pathToFile),
+      new FileSystemService().pathExists(pathToFile),
       this.fileService.getFileByName(filename),
     ]);
 
@@ -247,7 +235,10 @@ export class FileController {
 
         // Move files from temp folder to the new folder with new file name
         const newFilePath = path.join(this._savedFilePath, filename);
-        moveOps.push(rename(dat.filepath, newFilePath));
+
+        moveOps.push(
+          new FileSystemService().moveFile(dat.filepath, newFilePath),
+        );
       }
 
       await Promise.all(moveOps);
@@ -278,7 +269,7 @@ export class FileController {
     // Delete the file(s)
     const [deleteFilesDBResult, deleteFilesResult] = await Promise.allSettled([
       this.fileService.deleteFiles(body),
-      this.deleteFilesFromFileSystem(body),
+      new FileSystemService().deleteFiles(this._savedFilePath, body),
     ]);
 
     // If there's an error from the DB
@@ -385,40 +376,16 @@ export class FileController {
 
       files.forEach((el) => {
         const newFilePath = path.join(this._savedFilePath, el.filename);
-        ops.push(rm(newFilePath));
+        ops.push(new FileSystemService().deleteFile(newFilePath));
       });
 
       uploadedFiles.forEach((el) => {
-        ops.push(rm(el.filepath));
+        ops.push(new FileSystemService().deleteFile(el.filepath));
       });
 
       await Promise.allSettled(ops);
     } catch (e) {
       this.loggerService.addErrorLog(`Unable to roll back writes: ${e}`);
     }
-  }
-
-  async deleteFilesFromFileSystem(
-    filenames: string[],
-  ): Promise<Record<string, DeleteDetailsJSON>> {
-    const output: Record<string, DeleteFilesJSON> = {};
-
-    const ops = filenames.map(async (filename) => {
-      try {
-        await rm(path.join(this._savedFilePath, filename));
-        output[filename] = {
-          filename,
-        };
-      } catch (e) {
-        output[filename] = {
-          filename,
-          error: e.toString(),
-        };
-      }
-    });
-
-    await Promise.all(ops);
-
-    return output;
   }
 }
