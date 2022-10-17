@@ -1,16 +1,15 @@
 /**
- * The FileWriter class represents an API to handle file files. It performs
- * actions such as converting file files, saving them to a file system,
- * retrieving file files from the file system and deleting them from the
- * file system.
- *
- * It also employs FileMagick to perform conversions so that an file can
- * be compressed and resized into smaller versions.
+ * The FileWriter class represents an API to handle file operations. It performs
+ * operations such as moving, renaming, deleting and reading files.
  */
 export class FileWriter {
   constructor(private savedFilePath: string) {}
 
   getNewFileName() {
+    throw new Error('unimplemented');
+  }
+
+  async moveFile() {
     throw new Error('unimplemented');
   }
 

@@ -170,7 +170,7 @@ export class MongoFileDataService implements FileDataService {
     const fileCollection = await this.fileCollection;
     const result = await fileCollection.findOne({ filename: name });
 
-    if (result === null) {
+    if (isNullOrUndefined(result)) {
       throw new NotFoundError('Result is null');
     }
 
@@ -186,6 +186,13 @@ export class MongoFileDataService implements FileDataService {
       try {
         const result = await collection.findOneAndDelete({ filename });
 
+        /**
+         *  {
+         *    lastErrorObject: Unsure what this is
+         *    ok: number
+         *    value: object containing the find portion
+         *  }
+         */
         if (isNullOrUndefined(result.value)) {
           throw new NotFoundError('File Not Found');
         }

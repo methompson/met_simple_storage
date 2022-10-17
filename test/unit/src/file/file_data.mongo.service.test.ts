@@ -14,6 +14,7 @@ import {
 import { MongoDBClient } from '@/src/utils/mongodb_client_class';
 import { NewFileDetails } from '@/src/models/file_models';
 import { FileSortOption } from '@/src/file/file_data.service';
+import { ConfigService } from '@nestjs/config';
 
 jest.mock('mongodb', () => {
   const originalModule = jest.requireActual('mongodb');
@@ -711,7 +712,424 @@ describe('MongoFileDataService', () => {
     });
   });
 
-  describe('getFileByName', () => {});
-  describe('deleteFiles', () => {});
-  describe('initFromConfig', () => {});
+  describe('getFileByName', () => {
+    test('Runs findOne and returns the results', async () => {
+      const findOneSpy = jest.spyOn(mockCollection, 'findOne');
+      findOneSpy.mockImplementationOnce(() => ({
+        ...nfd1.toMongo(),
+        _id: new ObjectId(objectId1),
+      }));
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      const result = await svc.getFileByName(nfd1.filename);
+
+      expect(result.toJSON()).toMatchObject(nfd1.toJSON());
+
+      expect(findOneSpy).toHaveBeenCalledTimes(1);
+      expect(findOneSpy).toHaveBeenCalledWith({ filename: nfd1.filename });
+    });
+
+    test('Throws an error if fileCollection throws an error', async () => {
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      clientDbSpy.mockImplementationOnce(() => {
+        throw new Error(testError);
+      });
+
+      await expect(() => svc.getFileByName(nfd1.filename)).rejects.toThrow(
+        testError,
+      );
+      expect(findOne).toHaveBeenCalledTimes(0);
+    });
+
+    test('Throws an error if findOne throws an error', async () => {
+      const findOneSpy = jest.spyOn(mockCollection, 'findOne');
+      findOneSpy.mockImplementationOnce(() => {
+        throw new Error(testError);
+      });
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      await expect(() => svc.getFileByName(nfd1.filename)).rejects.toThrow(
+        testError,
+      );
+
+      expect(findOneSpy).toHaveBeenCalledTimes(1);
+      expect(findOneSpy).toHaveBeenCalledWith({ filename: nfd1.filename });
+    });
+
+    test('Throws an error if result is null', async () => {
+      const findOneSpy = jest.spyOn(mockCollection, 'findOne');
+      findOneSpy.mockImplementationOnce(() => null);
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+
+      await expect(() => svc.getFileByName(nfd1.filename)).rejects.toThrow(
+        'Result is null',
+      );
+
+      expect(findOneSpy).toHaveBeenCalledTimes(1);
+      expect(findOneSpy).toHaveBeenCalledWith({ filename: nfd1.filename });
+    });
+  });
+
+  describe('deleteFiles', () => {
+    test('Runs findOneAndDelete and returns a value', async () => {
+      const delSpy = jest.spyOn(mockCollection, 'findOneAndDelete');
+      delSpy.mockImplementation(() => ({
+        value: {
+          ...nfd1.toMongo(),
+          _id: new ObjectId(objectId1),
+        },
+      }));
+
+      const filename = nfd1.filename;
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      const result = await svc.deleteFiles([filename]);
+
+      expect(Object.keys(result).length).toBe(1);
+
+      expect(result[filename].error).toBeUndefined();
+      expect(result[filename].filename).toBe(filename);
+      expect(result[filename]?.fileDetails?.toJSON()).toMatchObject(
+        nfd1.toJSON(),
+      );
+
+      expect(findOneAndDelete).toHaveBeenCalledTimes(1);
+      expect(findOneAndDelete).toHaveBeenCalledWith({
+        filename: nfd1.filename,
+      });
+    });
+
+    test('Runs findOneAndDelete for every name passed in', async () => {
+      const delSpy = jest.spyOn(mockCollection, 'findOneAndDelete');
+      const filename1 = nfd1.filename;
+      const filename2 = nfd2.filename;
+
+      delSpy.mockImplementation((el) => {
+        let value = null;
+        if (el.filename === filename1) {
+          value = {
+            ...nfd1.toMongo(),
+            _id: new ObjectId(objectId1),
+          };
+        }
+        if (el.filename === filename2) {
+          value = {
+            ...nfd2.toMongo(),
+            _id: new ObjectId(objectId2),
+          };
+        }
+
+        return { value };
+      });
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      const result = await svc.deleteFiles([filename1, filename2]);
+
+      expect(Object.keys(result).length).toBe(2);
+
+      expect(result[filename1].error).toBeUndefined();
+      expect(result[filename1].filename).toBe(filename1);
+      expect(result[filename1]?.fileDetails?.toJSON()).toMatchObject(
+        nfd1.toJSON(),
+      );
+
+      expect(result[filename2].error).toBeUndefined();
+      expect(result[filename2].filename).toBe(filename2);
+      expect(result[filename2]?.fileDetails?.toJSON()).toMatchObject(
+        nfd2.toJSON(),
+      );
+
+      expect(findOneAndDelete).toHaveBeenCalledTimes(2);
+      expect(findOneAndDelete).toHaveBeenNthCalledWith(1, {
+        filename: filename1,
+      });
+      expect(findOneAndDelete).toHaveBeenNthCalledWith(2, {
+        filename: filename2,
+      });
+    });
+
+    test('throws an error if fileCollection throws an error', async () => {
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      clientDbSpy.mockImplementationOnce(() => {
+        throw new Error(testError);
+      });
+
+      await expect(() => svc.deleteFiles([nfd1.filename])).rejects.toThrow(
+        testError,
+      );
+      expect(insertMany).toHaveBeenCalledTimes(0);
+    });
+
+    test('Returns error result if findOneAndDelete throws an error', async () => {
+      const delSpy = jest.spyOn(mockCollection, 'findOneAndDelete');
+      delSpy.mockImplementation(() => {
+        throw new Error(testError);
+      });
+
+      const filename = nfd1.filename;
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      const result = await svc.deleteFiles([filename]);
+
+      expect(Object.keys(result).length).toBe(1);
+
+      expect(result[filename].error).toBe('Internal Server Error');
+      expect(result[filename].filename).toBe(filename);
+      expect(result[filename]?.fileDetails).toBeUndefined();
+
+      expect(findOneAndDelete).toHaveBeenCalledTimes(1);
+      expect(findOneAndDelete).toHaveBeenCalledWith({
+        filename: nfd1.filename,
+      });
+    });
+
+    test('Returns error result if result from findOneAndDelete is null', async () => {
+      const delSpy = jest.spyOn(mockCollection, 'findOneAndDelete');
+      delSpy.mockImplementation(() => ({
+        value: null,
+      }));
+
+      const filename = nfd1.filename;
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      const result = await svc.deleteFiles([filename]);
+
+      expect(Object.keys(result).length).toBe(1);
+
+      expect(result[filename].error).toBe('File Not Found');
+      expect(result[filename].filename).toBe(filename);
+      expect(result[filename]?.fileDetails).toBeUndefined();
+
+      expect(findOneAndDelete).toHaveBeenCalledTimes(1);
+      expect(findOneAndDelete).toHaveBeenCalledWith({
+        filename: nfd1.filename,
+      });
+    });
+
+    test('Returns error result if the results do not conform to FileDetails', async () => {
+      const delSpy = jest.spyOn(mockCollection, 'findOneAndDelete');
+      delSpy.mockImplementation(() => ({
+        value: {
+          ...nfd1.toMongo(),
+        },
+      }));
+
+      const filename = nfd1.filename;
+
+      const svc = new MongoFileDataService(mockMongoDBClient);
+      const result = await svc.deleteFiles([filename]);
+
+      expect(Object.keys(result).length).toBe(1);
+
+      expect(result[filename].error).toBe('Invalid File Details');
+      expect(result[filename].filename).toBe(filename);
+      expect(result[filename]?.fileDetails).toBeUndefined();
+
+      expect(findOneAndDelete).toHaveBeenCalledTimes(1);
+      expect(findOneAndDelete).toHaveBeenCalledWith({
+        filename: nfd1.filename,
+      });
+    });
+  });
+
+  describe('initFromConfig', () => {
+    test('creates a service with a client. Does not run makeFileCollection if files exists in the collections', async () => {
+      const fileDataCol = new Collection<Document>();
+      const fileNameSpy = jest.spyOn(fileDataCol, 'collectionName', 'get');
+      fileNameSpy.mockReturnValue(fileCollectionName);
+
+      const collection1 = new Collection<Document>();
+      const col1NameSpy = jest.spyOn(collection1, 'collectionName', 'get');
+      col1NameSpy.mockReturnValue('collection1');
+
+      const collection2 = new Collection<Document>();
+      const col2NameSpy = jest.spyOn(collection2, 'collectionName', 'get');
+      col2NameSpy.mockReturnValue('collection2');
+
+      const collectionsSpy = jest.spyOn(mockDb, 'collections');
+      collectionsSpy.mockImplementationOnce(() =>
+        Promise.resolve([fileDataCol, collection1, collection2]),
+      );
+
+      const createSpy = jest.spyOn(mockDb, 'createCollection');
+      createSpy.mockImplementationOnce(async () => mockCollection);
+
+      await MongoFileDataService.initFromConfig(
+        new ConfigService(),
+        mockMongoDBClient,
+      );
+
+      expect(clientDbSpy).toHaveBeenCalledTimes(1);
+      expect(collectionsSpy).toHaveBeenCalledTimes(1);
+      expect(fileNameSpy).toHaveBeenCalledTimes(1);
+      expect(col1NameSpy).toHaveBeenCalledTimes(1);
+      expect(col2NameSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy).toHaveBeenCalledTimes(0);
+    });
+
+    test('creates a service with a client. Runs makeFileCollection if files does not exist in the collections', async () => {
+      const collection1 = new Collection<Document>();
+      const col1NameSpy = jest.spyOn(collection1, 'collectionName', 'get');
+      col1NameSpy.mockReturnValue('collection1');
+
+      const collection2 = new Collection<Document>();
+      const col2NameSpy = jest.spyOn(collection2, 'collectionName', 'get');
+      col2NameSpy.mockReturnValue('collection2');
+
+      const collectionsSpy = jest.spyOn(mockDb, 'collections');
+      collectionsSpy.mockImplementationOnce(() =>
+        Promise.resolve([collection1, collection2]),
+      );
+
+      const createSpy = jest.spyOn(mockDb, 'createCollection');
+      createSpy.mockImplementationOnce(async () => mockCollection);
+
+      await MongoFileDataService.initFromConfig(
+        new ConfigService(),
+        mockMongoDBClient,
+      );
+
+      expect(clientDbSpy).toHaveBeenCalledTimes(2);
+      expect(collectionsSpy).toHaveBeenCalledTimes(1);
+      expect(col1NameSpy).toHaveBeenCalledTimes(1);
+      expect(col2NameSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('Throws an error if createCollection throws an error', async () => {
+      const collection1 = new Collection<Document>();
+      const col1NameSpy = jest.spyOn(collection1, 'collectionName', 'get');
+      col1NameSpy.mockReturnValue('collection1');
+
+      const collection2 = new Collection<Document>();
+      const col2NameSpy = jest.spyOn(collection2, 'collectionName', 'get');
+      col2NameSpy.mockReturnValue('collection2');
+
+      const collectionsSpy = jest.spyOn(mockDb, 'collections');
+      collectionsSpy.mockImplementationOnce(() =>
+        Promise.resolve([collection1, collection2]),
+      );
+
+      const createSpy = jest.spyOn(mockDb, 'createCollection');
+      createSpy.mockImplementationOnce(async () => {
+        throw new Error(testError);
+      });
+
+      await expect(() =>
+        MongoFileDataService.initFromConfig(
+          new ConfigService(),
+          mockMongoDBClient,
+        ),
+      ).rejects.toThrow(testError);
+
+      expect(clientDbSpy).toHaveBeenCalledTimes(2);
+      expect(collectionsSpy).toHaveBeenCalledTimes(1);
+      expect(col1NameSpy).toHaveBeenCalledTimes(1);
+      expect(col2NameSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('Throws an error if createIndex throws an error', async () => {
+      const collection1 = new Collection<Document>();
+      const col1NameSpy = jest.spyOn(collection1, 'collectionName', 'get');
+      col1NameSpy.mockReturnValue('collection1');
+
+      const collection2 = new Collection<Document>();
+      const col2NameSpy = jest.spyOn(collection2, 'collectionName', 'get');
+      col2NameSpy.mockReturnValue('collection2');
+
+      const collectionsSpy = jest.spyOn(mockDb, 'collections');
+      collectionsSpy.mockImplementationOnce(() =>
+        Promise.resolve([collection1, collection2]),
+      );
+
+      const createSpy = jest.spyOn(mockDb, 'createCollection');
+      createSpy.mockImplementationOnce(async () => mockCollection);
+
+      const createIndexSpy = jest.spyOn(mockCollection, 'createIndex');
+      createIndexSpy.mockImplementationOnce(async () => {
+        throw new Error(testError);
+      });
+
+      await expect(() =>
+        MongoFileDataService.initFromConfig(
+          new ConfigService(),
+          mockMongoDBClient,
+        ),
+      ).rejects.toThrow(testError);
+
+      expect(clientDbSpy).toHaveBeenCalledTimes(2);
+      expect(collectionsSpy).toHaveBeenCalledTimes(1);
+      expect(col1NameSpy).toHaveBeenCalledTimes(1);
+      expect(col2NameSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(createIndexSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('Throws an error if _mongoDBClient.db throws an error', async () => {
+      const fileDataCol = new Collection<Document>();
+      const fileNameSpy = jest.spyOn(fileDataCol, 'collectionName', 'get');
+      fileNameSpy.mockReturnValue(fileCollectionName);
+
+      const collection1 = new Collection<Document>();
+      const col1NameSpy = jest.spyOn(collection1, 'collectionName', 'get');
+      col1NameSpy.mockReturnValue('collection1');
+
+      const collection2 = new Collection<Document>();
+      const col2NameSpy = jest.spyOn(collection2, 'collectionName', 'get');
+      col2NameSpy.mockReturnValue('collection2');
+
+      clientDbSpy.mockImplementationOnce(() => {
+        throw new Error(testError);
+      });
+
+      const collectionsSpy = jest.spyOn(mockDb, 'collections');
+
+      await expect(() =>
+        MongoFileDataService.initFromConfig(
+          new ConfigService(),
+          mockMongoDBClient,
+        ),
+      ).rejects.toThrow();
+
+      expect(clientDbSpy).toHaveBeenCalledTimes(1);
+      expect(collectionsSpy).toHaveBeenCalledTimes(0);
+      expect(fileNameSpy).toHaveBeenCalledTimes(0);
+      expect(col1NameSpy).toHaveBeenCalledTimes(0);
+      expect(col2NameSpy).toHaveBeenCalledTimes(0);
+    });
+
+    test('throws an error if db.collections throws an error', async () => {
+      const fileDataCol = new Collection<Document>();
+      const fileNameSpy = jest.spyOn(fileDataCol, 'collectionName', 'get');
+      fileNameSpy.mockReturnValue(fileCollectionName);
+
+      const collection1 = new Collection<Document>();
+      const col1NameSpy = jest.spyOn(collection1, 'collectionName', 'get');
+      col1NameSpy.mockReturnValue('collection1');
+
+      const collection2 = new Collection<Document>();
+      const col2NameSpy = jest.spyOn(collection2, 'collectionName', 'get');
+      col2NameSpy.mockReturnValue('collection2');
+
+      const collectionsSpy = jest.spyOn(mockDb, 'collections');
+      collectionsSpy.mockImplementation(() => {
+        throw new Error(testError);
+      });
+
+      await expect(() =>
+        MongoFileDataService.initFromConfig(
+          new ConfigService(),
+          mockMongoDBClient,
+        ),
+      ).rejects.toThrow();
+
+      expect(clientDbSpy).toHaveBeenCalledTimes(1);
+      expect(collectionsSpy).toHaveBeenCalledTimes(1);
+      expect(fileNameSpy).toHaveBeenCalledTimes(0);
+      expect(col1NameSpy).toHaveBeenCalledTimes(0);
+      expect(col2NameSpy).toHaveBeenCalledTimes(0);
+    });
+  });
 });
