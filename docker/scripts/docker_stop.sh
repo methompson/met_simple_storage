@@ -1,0 +1,1 @@
+docker stop met_simple_storage

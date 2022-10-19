@@ -1,4 +1,4 @@
-import { mkdir, rename, rm, stat } from 'fs/promises';
+import { mkdir, copyFile, rm, stat } from 'fs/promises';
 import * as path from 'path';
 
 import { DeleteFilesJSON } from '@/src/file/file_data.service';
@@ -23,7 +23,7 @@ export class FileSystemService {
   }
 
   async moveFile(oldPath: string, newPath: string) {
-    await rename(oldPath, newPath);
+    await copyFile(oldPath, newPath);
   }
 
   async deleteFile(filePath: string) {

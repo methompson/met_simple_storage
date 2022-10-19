@@ -3,6 +3,9 @@
 /node_modules
 .env
 files
+firebase.json
+/docker/artifacts
+docker_run.sh
 
 # Logs
 logs

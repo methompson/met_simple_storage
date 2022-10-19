@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { LoggerModule } from '@/src/logger/logger.module';
 import { FileController } from '@/src/file/file.controller';
+import { FileAPIController } from '@/src/file/file_api.controller';
 import { InMemoryFileDataService } from '@/src/file/file_data.memory.service';
 import { MongoFileDataService } from './file_data.mongo.service';
 
@@ -22,7 +23,7 @@ const fileServiceFactory = {
 
 @Module({
   imports: [LoggerModule, ConfigModule],
-  controllers: [FileController],
+  controllers: [FileController, FileAPIController],
   providers: [fileServiceFactory],
 })
 export class FileUploadModule {}
